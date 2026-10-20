@@ -33,6 +33,7 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="quadro">🏢 Quadro da Brigada</button>
+    <button class="tab-btn" data-tab="areas">🗺️ Áreas de Evacuação</button>
     <button class="tab-btn" data-tab="colaboradores">👥 Colaboradores</button>
     <button class="tab-btn" data-tab="importar">📥 Importar Planilha</button>
     <button class="tab-btn" data-tab="fotos">🖼️ Importar Fotos</button>
@@ -50,6 +51,19 @@
       </div>
       <p class="text-muted small" style="margin-top:-6px;">Mostra só os colaboradores <b>ativos</b> marcados como brigadistas. Para incluir alguém, abra a aba Colaboradores e clique em ✏️.</p>
       <div id="orgchart-container" class="orgchart"></div>
+    </div>
+  </section>
+
+  <!-- ABA ÁREAS DE EVACUAÇÃO -->
+  <section id="tab-areas" class="tab-content" style="display:none;">
+    <div class="panel">
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">Áreas de responsabilidade dos líderes</h3>
+        <button id="btn-areas-pdf" class="btn btn-primary">📄 PDF das áreas</button>
+      </div>
+      <p class="text-muted small" style="margin-top:-6px;">Líderes ativos agrupados por localização. Digite um setor e tecle <b>Enter</b> para adicionar; clique no <b>×</b> para remover. Salva na hora.</p>
+      <div id="areas-avisos"></div>
+      <div id="areas-container"></div>
     </div>
   </section>
 
@@ -89,7 +103,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Foto</th><th>Nome</th><th>Vínculo</th><th>Área / Departamento</th><th>Localização</th><th>Brigada</th><th>Situação</th><th></th></tr>
+            <tr><th>Foto</th><th>Nome</th><th>Vínculo</th><th>Área / Departamento</th><th>Localização</th><th class="col-funcao">Função na Brigada</th><th class="col-centro">Situação</th><th></th></tr>
           </thead>
           <tbody id="tabela-colab-body"></tbody>
         </table>
@@ -223,9 +237,18 @@
             <label>Carga horária da formação (h)</label>
             <input type="number" id="campo-ch" min="1" placeholder="8 ou 24" />
           </div>
+          <div class="field">
+            <label>Classificação</label>
+            <div id="classif-preview" class="classif-preview">-</div>
+            <div class="small text-muted">Automática: 24h ou mais = Avançado · 8h = Intermediário</div>
+          </div>
+          <div class="field field-full" id="wrap-areas">
+            <label>Setores sob responsabilidade (líderes) — separe por vírgula</label>
+            <input type="text" id="campo-areas" placeholder="Ex.: SAC, Logística, Expedição (FT)" />
+          </div>
           <div class="field field-full">
-            <label>Observação (área de responsabilidade)</label>
-            <input type="text" id="campo-obs" placeholder="Ex.: SAC, Logística, Expedição (FT)" />
+            <label>Observação</label>
+            <input type="text" id="campo-obs" />
           </div>
         </div>
       </div>
@@ -242,6 +265,7 @@
 <datalist id="dl-area"></datalist>
 <datalist id="dl-depto"></datalist>
 <datalist id="dl-funcao"></datalist>
+<datalist id="dl-setores"></datalist>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

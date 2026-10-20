@@ -534,3 +534,49 @@ a.fluxo-etapa:hover { border-color: var(--brand-red); color: var(--brand-red); }
 }
 .menu-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 body { background: radial-gradient(circle at 10% -10%, rgba(214, 8, 8, 0.05), transparent 40%), #f1f2f4; background-attachment: fixed; }
+
+/* ---- Lista de presença ---- */
+.presenca-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.presenca-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; background: #fff; }
+.presenca-item.ausente { background: #fff1f1; border-color: #f3b4b4; }
+.presenca-item.ausente b { text-decoration: line-through; color: var(--danger); }
+.presenca-check { display: flex; gap: 10px; align-items: center; margin: 0; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--text); }
+.presenca-check input { width: 17px; height: 17px; flex-shrink: 0; }
+.presenca-item .txt-justificativa { margin-top: 8px; padding: 7px 10px; font-size: 0.82rem; }
+.painel-presenca { border-top: 1px dashed var(--border); padding-top: 14px; }
+
+/* ---- Papéis, classificação e áreas ---- */
+.badge.papel { font-size: 0.68rem; padding: 2px 8px; }
+.papel-coordenador { background: #272626; color: #fff; }
+.papel-lider { background: #fde8e8; color: #8f0505; }
+.papel-socorrista { background: #e0f2fe; color: #075985; }
+.papel-combatente { background: #ffedd5; color: #9a3412; }
+.badge.classif { font-size: 0.68rem; padding: 2px 8px; }
+.classif-avancado { background: #dcfce7; color: #166534; }
+.classif-intermediario { background: #fef9c3; color: #854d0e; }
+.classif-basico { background: #eceef1; color: #4b5563; }
+.classif-preview { font-weight: 700; padding: 10px 0 2px; }
+.org-badges { margin-top: 4px; display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.org-count { background: #eceef1; color: var(--text-muted); border-radius: 999px; padding: 1px 8px; font-size: 0.68rem; margin-left: 4px; letter-spacing: 0; }
+.org-areas { margin-top: 6px; display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.org-card.lider { width: 180px; }
+.org-card.socorrista { border-top-color: #0284c7; }
+.org-card.combatente { border-top-color: #ea580c; }
+.chip-area { display: inline-flex; align-items: center; gap: 4px; background: #f1f2f4; border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.7rem; margin: 2px 3px 2px 0; }
+.chip-area.editavel { font-size: 0.78rem; padding: 4px 6px 4px 11px; background: #fff7f7; border-color: #f3c9c9; }
+.chip-x { border: none; background: none; cursor: pointer; color: var(--danger); font-size: 1rem; line-height: 1; padding: 0 3px; }
+.areas-piso { margin-bottom: 22px; }
+.areas-piso h4 { margin: 0 0 10px; color: var(--grafite); font-size: 0.9rem; letter-spacing: 0.5px; }
+.areas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.area-card { border: 1px solid var(--border); border-left: 4px solid var(--brand-red); border-radius: var(--radius-sm); padding: 12px; background: #fff; }
+.area-chips { margin: 10px 0; min-height: 26px; }
+.input-novo-setor { padding: 7px 10px !important; font-size: 0.82rem !important; }
+#areas-avisos .config-warning { margin-bottom: 10px; }
+.org-card.integrante { width: 160px; }
+.org-card.lider { border-top-color: var(--brand-red-dark); }
+.org-card.coordenador { border-top-color: var(--grafite); }
+
+/* Coluna "Função na Brigada" centralizada */
+th.col-funcao, td.col-funcao, th.col-centro, td.col-centro { text-align: center; }
+td.col-funcao { min-width: 220px; }
+td.col-funcao .chip-area { margin: 2px; }

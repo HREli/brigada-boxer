@@ -16,6 +16,7 @@ const ROTULO_ENC = { "Líderes": "Fica com os líderes", "Pauta Geral": "Pauta d
 
 let brigadistasAtivos = [];
 let itensLideresPendentes = [];
+let presencaNova = {}; // id do brigadista -> { presente, justificativa }
 
 document.addEventListener("DOMContentLoaded", () => {
   mostrarAvisoConfiguracao();
@@ -57,6 +58,55 @@ async function carregarBrigadistas() {
   if (error) return console.error(error);
   brigadistasAtivos = data || [];
   document.getElementById("lista-brigadistas").innerHTML = brigadistasAtivos.map((b) => `<option value="${escHtml(b.nome)}"></option>`).join("");
+  presencaNova = {};
+  convidados().forEach((b) => (presencaNova[b.id] = { presente: true, justificativa: "" }));
+  renderPresenca(document.getElementById("presenca-lista"), convidados(), presencaNova, document.getElementById("presenca-resumo"));
+}
+
+// Quem é convocado: Geral = todos os brigadistas ativos; Líderes = coordenador + líderes
+function convidados() {
+  return TIPO === "Geral" ? brigadistasAtivos : lideresAtivos();
+}
+
+// ---------------- Lista de presença ----------------
+function renderPresenca(container, pessoas, estado, resumoEl) {
+  if (!pessoas.length) {
+    container.innerHTML = '<div class="empty-state small" style="padding:14px;">Nenhum brigadista ativo para convocar.</div>';
+    if (resumoEl) resumoEl.textContent = "";
+    return;
+  }
+  container.innerHTML = pessoas
+    .map((b) => {
+      const e = estado[b.id] || { presente: true, justificativa: "" };
+      return `<div class="presenca-item ${e.presente ? "" : "ausente"}" data-id="${b.id}">
+        <label class="presenca-check">
+          <input type="checkbox" class="chk-presente" ${e.presente ? "checked" : ""} />
+          <span><b>${escHtml(b.nome)}</b><span class="small text-muted"> · ${escHtml(b.funcao || b.cargo || "")}</span></span>
+        </label>
+        <input type="text" class="txt-justificativa" placeholder="Motivo da ausência (opcional)" value="${escHtml(e.justificativa || "")}" style="${e.presente ? "display:none;" : ""}" />
+      </div>`;
+    })
+    .join("");
+  const atualizarResumo = () => {
+    if (!resumoEl) return;
+    const aus = pessoas.filter((b) => estado[b.id] && !estado[b.id].presente).length;
+    resumoEl.innerHTML = `<span class="badge badge-ok">${pessoas.length - aus} presentes</span> <span class="badge ${aus ? "badge-danger" : "badge-muted"}">${aus} ausente(s)</span>`;
+  };
+  container.querySelectorAll(".presenca-item").forEach((div) => {
+    const id = div.dataset.id;
+    if (!estado[id]) estado[id] = { presente: true, justificativa: "" };
+    const chk = div.querySelector(".chk-presente");
+    const txt = div.querySelector(".txt-justificativa");
+    chk.addEventListener("change", () => {
+      estado[id].presente = chk.checked;
+      div.classList.toggle("ausente", !chk.checked);
+      txt.style.display = chk.checked ? "none" : "block";
+      if (!chk.checked) txt.focus();
+      atualizarResumo();
+    });
+    txt.addEventListener("input", () => (estado[id].justificativa = txt.value));
+  });
+  atualizarResumo();
 }
 
 function lideresAtivos() {
@@ -200,10 +250,14 @@ async function salvarAta() {
       if (error) throw error;
     }
 
-    if (TIPO === "Geral" && brigadistasAtivos.length) {
-      const { error } = await supabaseClient
-        .from("ata_assinaturas")
-        .insert(brigadistasAtivos.map((b) => ({ ata_id: ata.id, brigadista_id: b.id, assinado: false })));
+    const lista = convidados();
+    if (lista.length) {
+      const { error } = await supabaseClient.from("ata_assinaturas").insert(
+        lista.map((b) => {
+          const e = presencaNova[b.id] || { presente: true, justificativa: "" };
+          return { ata_id: ata.id, brigadista_id: b.id, assinado: false, presente: e.presente, justificativa: e.presente ? null : e.justificativa.trim() || null };
+        })
+      );
       if (error) throw error;
     }
 
@@ -214,6 +268,7 @@ async function salvarAta() {
 
     document.getElementById("ata-conteudo").value = "";
     document.getElementById("acoes-container").innerHTML = "";
+    carregarBrigadistas();
     atualizarEmptyAcoes();
     if (TIPO === "Geral") carregarItensLideres();
     document.querySelector('.tab-btn[data-tab="historico"]').click();
@@ -227,7 +282,7 @@ async function salvarAta() {
 }
 
 // ---------------- Histórico ----------------
-let cacheHistorico = { atas: [], acoes: [] };
+let cacheHistorico = { atas: [], acoes: [], presenca: [] };
 
 async function carregarHistorico() {
   const container = document.getElementById("historico-lista");
@@ -243,14 +298,20 @@ async function carregarHistorico() {
     }
     empty.style.display = "none";
     const ids = atas.map((a) => a.id);
-    const [proprias, vinculadas, todasAtasGerais] = await Promise.all([
+    const [proprias, vinculadas, todasAtasGerais, presencaRes] = await Promise.all([
       supabaseClient.from("acoes").select("*").in("ata_id", ids),
       TIPO === "Geral" ? supabaseClient.from("acoes").select("*").in("ata_geral_id", ids) : Promise.resolve({ data: [] }),
       TIPO === "Lideres" ? supabaseClient.from("atas").select("id,data_reuniao").eq("tipo", "Geral") : Promise.resolve({ data: [] }),
+      supabaseClient
+        .from("ata_assinaturas")
+        .select("id, ata_id, brigadista_id, presente, justificativa, brigadista:brigadistas(nome,funcao,cargo)")
+        .in("ata_id", ids),
     ]);
     const acoes = [...(proprias.data || []), ...(vinculadas.data || [])];
     const mapaGerais = Object.fromEntries((todasAtasGerais.data || []).map((g) => [g.id, g.data_reuniao]));
-    cacheHistorico = { atas, acoes };
+    const presenca = (presencaRes.data || []).filter((p) => p.brigadista);
+    presenca.sort((a, b) => a.brigadista.nome.localeCompare(b.brigadista.nome));
+    cacheHistorico = { atas, acoes, presenca };
 
     container.innerHTML = "";
     atas.forEach((ata) => {
@@ -259,8 +320,12 @@ async function carregarHistorico() {
       const card = document.createElement("div");
       card.className = "panel ata-card";
 
+      const pres = presenca.filter((p) => p.ata_id === ata.id);
+      const nAus = pres.filter((p) => !p.presente).length;
+      const resumoPresenca = pres.length ? ` · ${pres.length - nAus} presentes${nAus ? `, <b style="color:var(--danger)">${nAus} ausente(s)</b>` : ""}` : "";
       let resumo;
-      let botoes = `<button class="btn btn-outline btn-gerar-pdf" data-id="${ata.id}">📄 Gerar PDF</button>`;
+      let botoes = `<button class="btn btn-outline btn-gerar-pdf" data-id="${ata.id}">📄 Gerar PDF</button>
+        ${pres.length ? `<button class="btn btn-secondary btn-presenca" data-id="${ata.id}">👥 Presença</button>` : ""}`;
       if (TIPO === "Geral") {
         resumo = `${doAta.length} ação(ões) · ${trazidos.length} item(ns) dos líderes · ${
           ata.arquivo_assinado_url ? '<span class="badge badge-ok">ATA assinada anexada</span>' : '<span class="badge badge-warn">Aguardando ATA assinada</span>'
@@ -274,6 +339,7 @@ async function carregarHistorico() {
         const pend = doAta.filter((a) => a.encaminhamento !== "Líderes" && !a.ata_geral_id).length;
         resumo = `${doAta.length} item(ns)` + (pend ? ` · <span class="badge badge-warn">${pend} aguardando Reunião Geral</span>` : "");
       }
+      resumo += resumoPresenca;
       botoes += `<button class="btn btn-secondary btn-excluir-ata" data-id="${ata.id}" title="Excluir">🗑️</button>`;
 
       const linhasItens = doAta
@@ -304,6 +370,10 @@ async function carregarHistorico() {
           </div>
           <div class="row">${botoes}</div>
         </div>
+        <div class="painel-presenca mt-16" id="presenca-${ata.id}" style="display:none;">
+          <div class="presenca-grid lista"></div>
+          <div class="row mt-16"><button class="btn btn-primary btn-salvar-presenca" data-id="${ata.id}">💾 Salvar presença</button></div>
+        </div>
         <details class="mt-16">
           <summary class="small">Ver conteúdo e itens</summary>
           <div class="conteudo-ata">${escHtml(ata.conteudo)}</div>
@@ -317,9 +387,52 @@ async function carregarHistorico() {
     container.querySelectorAll(".input-upload-assinada").forEach((i) => i.addEventListener("change", (e) => anexarAtaAssinada(e, i.dataset.id)));
     container.querySelectorAll(".btn-excluir-ata").forEach((b) => b.addEventListener("click", () => excluirAta(b.dataset.id)));
     container.querySelectorAll(".sel-encaminhamento").forEach((s) => s.addEventListener("change", () => alterarEncaminhamento(s)));
+    container.querySelectorAll(".btn-presenca").forEach((b) => b.addEventListener("click", () => abrirPresenca(b.dataset.id)));
+    container.querySelectorAll(".btn-salvar-presenca").forEach((b) => b.addEventListener("click", () => salvarPresenca(b.dataset.id, b)));
   } catch (err) {
     console.error(err);
     showToast("Erro ao carregar histórico: " + err.message, "error");
+  }
+}
+
+// Edição da presença de uma reunião já registrada
+const estadosPresenca = {};
+function abrirPresenca(ataId) {
+  const painel = document.getElementById("presenca-" + ataId);
+  if (painel.style.display !== "none") {
+    painel.style.display = "none";
+    return;
+  }
+  const pres = cacheHistorico.presenca.filter((p) => p.ata_id === ataId);
+  const estado = {};
+  pres.forEach((p) => (estado[p.brigadista_id] = { presente: p.presente, justificativa: p.justificativa || "", rowId: p.id }));
+  estadosPresenca[ataId] = estado;
+  const pessoas = pres.map((p) => ({ id: p.brigadista_id, ...p.brigadista }));
+  renderPresenca(painel.querySelector(".lista"), pessoas, estado, null);
+  painel.style.display = "block";
+}
+
+async function salvarPresenca(ataId, btn) {
+  const estado = estadosPresenca[ataId];
+  if (!estado) return;
+  btn.disabled = true;
+  try {
+    const res = await Promise.all(
+      Object.values(estado).map((e) =>
+        supabaseClient
+          .from("ata_assinaturas")
+          .update({ presente: e.presente, justificativa: e.presente ? null : (e.justificativa || "").trim() || null })
+          .eq("id", e.rowId)
+      )
+    );
+    const erro = res.find((r) => r.error);
+    if (erro) throw erro.error;
+    showToast("Presença atualizada!", "success");
+    carregarHistorico();
+  } catch (err) {
+    showToast("Erro ao salvar presença: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -370,6 +483,13 @@ async function gerarPdfAta(ataId) {
   if (!ata) return;
   const doAta = cacheHistorico.acoes.filter((a) => a.ata_id === ataId);
   const trazidos = cacheHistorico.acoes.filter((a) => a.ata_geral_id === ataId);
+  let pres = cacheHistorico.presenca.filter((p) => p.ata_id === ataId);
+  if (!pres.length) {
+    // Reuniões antigas sem lista de presença: considera todos os convocados atuais como presentes
+    pres = convidados().map((b) => ({ presente: true, justificativa: null, brigadista: b }));
+  }
+  const presentes = pres.filter((p) => p.presente).map((p) => p.brigadista);
+  const ausentes = pres.filter((p) => !p.presente);
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -377,7 +497,10 @@ async function gerarPdfAta(ataId) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const contentWidth = pageWidth - marginX * 2;
   const titulo = TIPO === "Geral" ? "ATA DA REUNIÃO GERAL DA BRIGADA" : "ATA DA REUNIÃO DE LÍDERES DA BRIGADA";
-  let y = await cabecalhoPdf(doc, titulo, ["Data da reunião: " + formatarDataBR(ata.data_reuniao)]);
+  let y = await cabecalhoPdf(doc, titulo, [
+    "Data da reunião: " + formatarDataBR(ata.data_reuniao),
+    `Presentes: ${presentes.length}   ·   Ausentes: ${ausentes.length}`,
+  ]);
 
   const secao = (t) => {
     if (y > 260) {
@@ -396,10 +519,13 @@ async function gerarPdfAta(ataId) {
   };
 
   if (TIPO === "Lideres") {
-    const lideres = lideresAtivos();
-    if (lideres.length) {
-      secao("Coordenação e líderes da brigada:");
-      tabela(["Nome", "Função", "Localização"], lideres.map((l) => [l.nome, l.funcao || l.cargo, l.piso || "-"]));
+    if (presentes.length) {
+      secao("Participantes (presentes):");
+      tabela(["Nome", "Função"], presentes.map((l) => [l.nome, l.funcao || l.cargo || "-"]));
+    }
+    if (ausentes.length) {
+      secao("Ausentes:");
+      tabela(["Nome", "Função", "Motivo"], ausentes.map((a) => [a.brigadista.nome, a.brigadista.funcao || a.brigadista.cargo || "-", a.justificativa || "-"]));
     }
   }
 
@@ -438,19 +564,16 @@ async function gerarPdfAta(ataId) {
   }
 
   if (TIPO === "Geral") {
-    const { data: ass } = await supabaseClient
-      .from("ata_assinaturas")
-      .select("brigadista:brigadistas(nome,funcao,cargo)")
-      .eq("ata_id", ataId);
-    let lista = (ass || []).map((a) => a.brigadista).filter(Boolean);
-    if (!lista.length) lista = brigadistasAtivos;
-    lista.sort((a, b) => a.nome.localeCompare(b.nome));
-    secao("Assinatura dos integrantes da Brigada:");
+    if (ausentes.length) {
+      secao("Ausentes:");
+      tabela(["Nome", "Função", "Motivo"], ausentes.map((a) => [a.brigadista.nome, a.brigadista.funcao || a.brigadista.cargo || "-", a.justificativa || "-"]));
+    }
+    secao("Assinatura dos presentes:");
     doc.autoTable({
       startY: y + 2,
       head: [["Nome", "Função", "Assinatura"]],
-      body: lista.map((b) => [b.nome, b.funcao || b.cargo || "-", ""]),
-      styles: { fontSize: 9, minCellHeight: 10 },
+      body: presentes.map((b) => [b.nome, b.funcao || b.cargo || "-", ""]),
+      styles: { fontSize: 9, minCellHeight: 10, valign: "middle" },
       columnStyles: { 2: { cellWidth: 70 } },
       headStyles: CORES_TABELA_PDF,
       margin: { left: marginX, right: marginX, bottom: 16 },
