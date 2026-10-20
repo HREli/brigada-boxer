@@ -7,8 +7,8 @@
 //   3. Copie a chave "anon public" e cole em SUPABASE_ANON_KEY
 // =========================================================================
 
-const SUPABASE_URL = "https://eseohihuodprgkbpajcj.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzZW9oaWh1b2RwcmdrYnBhamNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1ODM3MDksImV4cCI6MjEwNTE1OTcwOX0.3A3rpINA2qtpoykMtpGIviP-JU7lImYfXVcAvi85FZM";
+const SUPABASE_URL = "https://yybkkmjplzxxwsepkuuf.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5YmtrbWpwbHp4eHdzZXBrdXVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1MDQ5NTcsImV4cCI6MjEwODA4MDk1N30.wrUuy0z9Wkz5V_6GjvYKWQ2uE3gHPdln8Pp5Rx4vqig";
 
 const CONFIGURADO = !SUPABASE_URL.startsWith("COLE_AQUI") && !SUPABASE_ANON_KEY.startsWith("COLE_AQUI");
 
