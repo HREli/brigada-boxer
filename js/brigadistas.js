@@ -3,14 +3,36 @@
 // =========================================================================
 
 const CARGOS = ["Coordenador", "Líder de Área", "Integrante"];
+// Sugestões de função (o campo aceita texto livre)
 const FUNCOES = [
+  "Coordenador da Brigada",
+  "Líder de Abandono Geral",
+  "Líder de Evacuação",
+  "Líder de Andar / Socorrista",
+  "Líder / Combatente",
   "Socorrista",
   "Combatente",
   "Socorrista e Combatente",
-  "Socorrista e Líder de Abandono",
-  "Combatente e Líder de Abandono",
-  "Socorrista, Combatente e Líder de Abandono",
 ];
+
+// Cargo no organograma a partir da função, quando não informado
+function cargoPelaFuncao(funcao) {
+  const f = normalizarNome(funcao);
+  if (!f) return "";
+  if (f.includes("COORDENADOR")) return "Coordenador";
+  if (f.includes("LIDER")) return "Líder de Área";
+  return "Integrante";
+}
+
+function capitalizarFuncao(funcao) {
+  const conhecida = FUNCOES.find((x) => normalizarNome(x) === normalizarNome(funcao));
+  if (conhecida) return conhecida;
+  return String(funcao)
+    .toLowerCase()
+    .replace(/(^|[\s\/(])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase())
+    .replace(/\b(De|Da|Do|Das|Dos|E)\b/g, (m) => m.toLowerCase())
+    .trim();
+}
 const FOTO_PADRAO = "https://placehold.co/96x96?text=Foto";
 
 let colaboradores = [];
@@ -79,6 +101,7 @@ function atualizarDatalists() {
   preencher("dl-local", valoresUnicos("piso"));
   preencher("dl-area", valoresUnicos("area"));
   preencher("dl-depto", valoresUnicos("departamento"));
+  preencher("dl-funcao", [...new Set([...FUNCOES, ...valoresUnicos("funcao")])]);
 
   const sel = document.getElementById("filtro-local");
   const atual = sel.value;
@@ -105,7 +128,7 @@ function renderOrgChart() {
   }
 
   container.appendChild(criarLinhaOrg("Coordenação", lista.filter((b) => b.cargo === "Coordenador"), "coordenador"));
-  container.appendChild(criarLinhaOrg("Líderes de Área", lista.filter((b) => b.cargo === "Líder de Área"), "lider"));
+  container.appendChild(criarLinhaOrg("Líderes", lista.filter((b) => b.cargo === "Líder de Área"), "lider"));
   container.appendChild(criarLinhaOrg("Socorristas e Combatentes", lista.filter((b) => b.cargo === "Integrante"), "integrante"));
 }
 
@@ -122,8 +145,9 @@ function criarLinhaOrg(titulo, pessoas, classe) {
     card.innerHTML = `
       <img class="avatar" src="${escHtml(p.foto_url || FOTO_PADRAO)}" />
       <div class="nome">${escHtml(p.nome)}</div>
-      <div class="info">${escHtml(p.funcao)}</div>
-      <div class="info">${escHtml([p.departamento || p.area, p.piso].filter(Boolean).join(" · "))}</div>
+      <div class="info"><b>${escHtml(p.funcao)}</b></div>
+      <div class="info">${escHtml([p.piso, p.tipo_brigada].filter(Boolean).join(" · "))}</div>
+      ${p.observacao ? `<div class="info small">${escHtml(p.observacao)}</div>` : ""}
     `;
     row.appendChild(card);
   });
@@ -151,7 +175,7 @@ function listaFiltrada() {
     if (brigada === "nao" && c.e_brigadista) return false;
     if (local && (c.piso || "") !== local) return false;
     if (busca) {
-      const alvo = normalizarNome([c.nome, c.area, c.departamento, c.vinculo].join(" "));
+      const alvo = normalizarNome([c.nome, c.area, c.departamento, c.vinculo, c.funcao, c.observacao].join(" "));
       if (!alvo.includes(busca)) return false;
     }
     return true;
@@ -169,7 +193,9 @@ function renderTabela() {
     const tr = document.createElement("tr");
     if (!c.ativo) tr.className = "linha-inativa";
     const brigada = c.e_brigadista
-      ? `<span class="badge badge-brigada">${escHtml(c.cargo)}</span><div class="small text-muted">${escHtml(c.funcao)}</div>`
+      ? `<span class="badge badge-brigada">${escHtml(c.funcao)}</span><div class="small text-muted">${escHtml(
+          [c.tipo_brigada, c.carga_horaria ? c.carga_horaria + "h" : "", c.observacao].filter(Boolean).join(" · ")
+        )}</div>`
       : '<span class="text-muted small">—</span>';
     tr.innerHTML = `
       <td><img class="avatar avatar-sm" src="${escHtml(c.foto_url || FOTO_PADRAO)}" /></td>
@@ -247,6 +273,9 @@ function abrirModal(id) {
   document.getElementById("campo-brigadista").checked = c ? c.e_brigadista : false;
   document.getElementById("campo-cargo").value = c ? c.cargo || "" : "";
   document.getElementById("campo-funcao").value = c ? c.funcao || "" : "";
+  document.getElementById("campo-tipo").value = c ? c.tipo_brigada || "" : "";
+  document.getElementById("campo-ch").value = c && c.carga_horaria ? c.carga_horaria : "";
+  document.getElementById("campo-obs").value = c ? c.observacao || "" : "";
   document.getElementById("foto-preview").src = (c && c.foto_url) || FOTO_PADRAO;
   atualizarCamposBrigada();
   document.getElementById("modal-colab").style.display = "flex";
@@ -262,7 +291,7 @@ async function salvarColaborador() {
   const nome = document.getElementById("campo-nome").value.replace(/\s+/g, " ").trim();
   const eBrig = document.getElementById("campo-brigadista").checked;
   const cargo = document.getElementById("campo-cargo").value;
-  const funcao = document.getElementById("campo-funcao").value;
+  const funcao = document.getElementById("campo-funcao").value.replace(/\s+/g, " ").trim();
 
   if (!nome) return showToast("Informe o nome.", "error");
   if (eBrig && (!cargo || !funcao)) return showToast("Para brigadista, escolha o cargo e a função.", "error");
@@ -280,6 +309,9 @@ async function salvarColaborador() {
     e_brigadista: eBrig,
     cargo: eBrig ? cargo : null,
     funcao: eBrig ? funcao : null,
+    tipo_brigada: eBrig ? document.getElementById("campo-tipo").value || null : null,
+    carga_horaria: eBrig ? parseInt(document.getElementById("campo-ch").value, 10) || null : null,
+    observacao: eBrig ? document.getElementById("campo-obs").value.trim() || null : null,
     updated_at: new Date().toISOString(),
   };
 
@@ -327,6 +359,14 @@ const MAPA_COLUNAS = {
   FUNCAO: "funcao",
   "FUNCAO NA BRIGADA": "funcao",
   "FUNCAO BRIGADA": "funcao",
+  TIPO: "tipo",
+  "TIPO BRIGADA": "tipo",
+  CH: "ch",
+  "CARGA HORARIA": "ch",
+  OBSERVACAO: "observacao",
+  OBSERVACOES: "observacao",
+  OBS: "observacao",
+  CPF: "cpf",
   SITUACAO: "situacao",
   STATUS: "situacao",
   ATIVO: "situacao",
@@ -343,12 +383,12 @@ function setupImportacaoPlanilha() {
 
 function baixarModelo() {
   const linhas = [
-    ["Nome", "Vínculo", "Área", "Departamento", "Localização", "Cargo na Brigada", "Função na Brigada", "Situação"],
-    ["MARIA DA SILVA", "CLT", "Comercial", "Vendas", "1º ANDAR", "Integrante", "Socorrista", "Ativo"],
-    ["JOÃO SOUZA", "PJ", "Operações", "Logística", "TÉRREO", "", "", "Ativo"],
+    ["Nome", "Localização", "Tipo", "CH", "Função", "Observação", "Área", "Departamento", "Vínculo", "Situação"],
+    ["MARIA DA SILVA", "1º ANDAR", "ADM", 8, "Socorrista", "", "Comercial", "Vendas", "CLT", "Ativo"],
+    ["JOÃO SOUZA", "TÉRREO", "OPER", 24, "Líder de Evacuação", "Expedição e Almoxarifado", "Operações", "Logística", "CLT", "Ativo"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(linhas);
-  ws["!cols"] = [{ wch: 38 }, { wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 14 }, { wch: 18 }, { wch: 40 }, { wch: 10 }];
+  ws["!cols"] = [{ wch: 38 }, { wch: 13 }, { wch: 7 }, { wch: 5 }, { wch: 28 }, { wch: 36 }, { wch: 20 }, { wch: 22 }, { wch: 10 }, { wch: 9 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Colaboradores");
   XLSX.writeFile(wb, "modelo-importacao-colaboradores.xlsx");
@@ -420,14 +460,24 @@ function prepararImportacao(linhas) {
     }
 
     if (l.cargo || l.funcao) {
-      const cargo = casarOpcao(l.cargo, CARGOS);
-      const funcao = casarOpcao(l.funcao, FUNCOES);
+      const funcao = l.funcao ? capitalizarFuncao(l.funcao) : "";
+      const cargo = l.cargo ? casarOpcao(l.cargo, CARGOS) : cargoPelaFuncao(funcao);
       if (cargo && funcao) {
         Object.assign(reg, { e_brigadista: true, cargo, funcao });
       } else {
         avisos.push(`"${l.nome}": cargo/função da brigada incompletos ou inválidos (não marcado como brigadista).`);
       }
     }
+    if ("tipo" in l && l.tipo) {
+      const t = normalizarNome(l.tipo);
+      if (t.startsWith("ADM")) reg.tipo_brigada = "ADM";
+      else if (t.startsWith("OPER")) reg.tipo_brigada = "OPER";
+    }
+    if ("ch" in l && l.ch) {
+      const ch = parseInt(String(l.ch).replace(/\D/g, ""), 10);
+      if (ch > 0) reg.carga_horaria = ch;
+    }
+    if ("observacao" in l) reg.observacao = l.observacao || null;
 
     const atual = existentes.get(chave);
     if (!atual) {
@@ -443,6 +493,7 @@ function prepararImportacao(linhas) {
     ? colaboradores.filter((c) => c.ativo && !vistos.has(normalizarNome(c.nome)))
     : [];
 
+  if (linhas.some((l) => l.cpf)) avisos.unshift("A coluna CPF foi ignorada: por segurança (LGPD), o CPF não é gravado pelo app, que não tem login.");
   importacaoPendente = { linhas, novos, atualizados, inativar };
 
   const listaNomes = (arr, max = 12) =>
@@ -634,8 +685,8 @@ async function exportarListaPDF() {
   const y = await cabecalhoPdf(doc, "Integrantes da Brigada de Incêndio", [`${lista.length} brigadista(s) ativo(s)`]);
   doc.autoTable({
     startY: y,
-    head: [["Nome", "Cargo", "Função", "Área / Depto.", "Localização"]],
-    body: lista.map((b) => [b.nome, b.cargo, b.funcao, [b.area, b.departamento].filter(Boolean).join(" / "), b.piso || "-"]),
+    head: [["Nome", "Função", "Localização", "Tipo", "CH", "Observação"]],
+    body: lista.map((b) => [b.nome, b.funcao, b.piso || "-", b.tipo_brigada || "-", b.carga_horaria ? b.carga_horaria + "h" : "-", b.observacao || ""]),
     styles: { fontSize: 8 },
     headStyles: CORES_TABELA_PDF,
     margin: { left: 14, right: 14, bottom: 16 },

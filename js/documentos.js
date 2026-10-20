@@ -55,7 +55,7 @@ async function carregar() {
   try {
     const [d, b] = await Promise.all([
       supabaseClient.from("documentos").select("*").order("data_emissao", { ascending: false, nullsFirst: false }),
-      supabaseClient.from("brigadistas").select("id,nome,cargo,ativo,e_brigadista").order("nome"),
+      supabaseClient.from("brigadistas").select("id,nome,cargo,funcao,ativo,e_brigadista").order("nome"),
     ]);
     if (d.error) throw d.error;
     if (b.error) throw b.error;
@@ -168,7 +168,7 @@ function renderSituacao() {
       else situacao = '<span class="badge badge-danger">Sem certificado</span>';
       return `<tr>
         <td><b>${escHtml(b.nome)}</b></td>
-        <td>${escHtml(b.cargo || "-")}</td>
+        <td>${escHtml(b.funcao || b.cargo || "-")}</td>
         <td>${doc ? `<a href="${escHtml(doc.arquivo_url)}" target="_blank">${escHtml(doc.titulo)}</a>` : turmaVigente ? `<a href="${escHtml(turmaVigente.arquivo_url)}" target="_blank">${escHtml(turmaVigente.titulo)} (turma)</a>` : "-"}</td>
         <td>${formatarDataBR(doc ? doc.data_validade : turmaVigente ? turmaVigente.data_validade : null)}</td>
         <td>${situacao}</td>

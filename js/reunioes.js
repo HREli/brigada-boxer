@@ -399,7 +399,7 @@ async function gerarPdfAta(ataId) {
     const lideres = lideresAtivos();
     if (lideres.length) {
       secao("Coordenação e líderes da brigada:");
-      tabela(["Nome", "Cargo", "Área"], lideres.map((l) => [l.nome, l.cargo, l.departamento || l.area || "-"]));
+      tabela(["Nome", "Função", "Localização"], lideres.map((l) => [l.nome, l.funcao || l.cargo, l.piso || "-"]));
     }
   }
 
@@ -440,7 +440,7 @@ async function gerarPdfAta(ataId) {
   if (TIPO === "Geral") {
     const { data: ass } = await supabaseClient
       .from("ata_assinaturas")
-      .select("brigadista:brigadistas(nome,cargo)")
+      .select("brigadista:brigadistas(nome,funcao,cargo)")
       .eq("ata_id", ataId);
     let lista = (ass || []).map((a) => a.brigadista).filter(Boolean);
     if (!lista.length) lista = brigadistasAtivos;
@@ -448,8 +448,8 @@ async function gerarPdfAta(ataId) {
     secao("Assinatura dos integrantes da Brigada:");
     doc.autoTable({
       startY: y + 2,
-      head: [["Nome", "Cargo", "Assinatura"]],
-      body: lista.map((b) => [b.nome, b.cargo || "-", ""]),
+      head: [["Nome", "Função", "Assinatura"]],
+      body: lista.map((b) => [b.nome, b.funcao || b.cargo || "-", ""]),
       styles: { fontSize: 9, minCellHeight: 10 },
       columnStyles: { 2: { cellWidth: 70 } },
       headStyles: CORES_TABELA_PDF,

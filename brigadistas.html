@@ -105,8 +105,9 @@
       <h3>Importar colaboradores por planilha</h3>
       <p class="text-muted">Use uma planilha Excel (.xlsx) ou CSV com a primeira linha de títulos. Colunas reconhecidas:</p>
       <ul class="text-muted small lista-colunas">
-        <li><b>Nome</b> (obrigatório) · <b>Vínculo</b> · <b>Área</b> · <b>Departamento</b> · <b>Localização</b></li>
-        <li>Opcionais: <b>Cargo na Brigada</b> (Coordenador, Líder de Área, Integrante) · <b>Função na Brigada</b> · <b>Situação</b> (Ativo/Inativo)</li>
+        <li><b>Nome</b> (obrigatório) · <b>Localização</b> · <b>Tipo</b> (ADM/OPER) · <b>CH</b> · <b>Função</b> · <b>Observação</b></li>
+        <li>Opcionais: <b>Área</b> · <b>Departamento</b> · <b>Vínculo</b> · <b>Cargo</b> (se vazio, é deduzido da função: Coordenador / Líder / Integrante) · <b>Situação</b> (Ativo/Inativo)</li>
+        <li>Quem tem <b>Função</b> preenchida entra como brigadista. A coluna <b>CPF</b> é ignorada por segurança.</li>
         <li>Quem já existe é <b>atualizado</b> (pelo nome, sem diferenciar acentos/maiúsculas). Ninguém é excluído.</li>
       </ul>
       <div class="row mb-16">
@@ -202,21 +203,29 @@
             <select id="campo-cargo">
               <option value="">Selecione...</option>
               <option>Coordenador</option>
-              <option>Líder de Área</option>
+              <option value="Líder de Área">Líder</option>
               <option>Integrante</option>
             </select>
           </div>
           <div class="field">
             <label>Função na Brigada *</label>
-            <select id="campo-funcao">
-              <option value="">Selecione...</option>
-              <option>Socorrista</option>
-              <option>Combatente</option>
-              <option>Socorrista e Combatente</option>
-              <option>Socorrista e Líder de Abandono</option>
-              <option>Combatente e Líder de Abandono</option>
-              <option>Socorrista, Combatente e Líder de Abandono</option>
+            <input type="text" id="campo-funcao" list="dl-funcao" placeholder="Ex.: Líder de Evacuação" />
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select id="campo-tipo">
+              <option value="">-</option>
+              <option value="ADM">ADM (administrativo)</option>
+              <option value="OPER">OPER (operacional)</option>
             </select>
+          </div>
+          <div class="field">
+            <label>Carga horária da formação (h)</label>
+            <input type="number" id="campo-ch" min="1" placeholder="8 ou 24" />
+          </div>
+          <div class="field field-full">
+            <label>Observação (área de responsabilidade)</label>
+            <input type="text" id="campo-obs" placeholder="Ex.: SAC, Logística, Expedição (FT)" />
           </div>
         </div>
       </div>
@@ -232,6 +241,7 @@
 <datalist id="dl-local"></datalist>
 <datalist id="dl-area"></datalist>
 <datalist id="dl-depto"></datalist>
+<datalist id="dl-funcao"></datalist>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
