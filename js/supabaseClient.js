@@ -1,10 +1,5 @@
 // =========================================================================
-// BRIGADA BOXER - Configuração de conexão com o Supabase
-//
-// PREENCHA os dois valores abaixo com os dados do SEU projeto Supabase:
-//   1. Acesse supabase.com > seu projeto > Project Settings > API
-//   2. Copie o "Project URL" e cole em SUPABASE_URL
-//   3. Copie a chave "anon public" e cole em SUPABASE_ANON_KEY
+// BRIGADA BOXER - Conexão com o Supabase + funções comuns a todas as telas
 // =========================================================================
 
 const SUPABASE_URL = "https://yybkkmjplzxxwsepkuuf.supabase.co";
@@ -17,9 +12,15 @@ if (CONFIGURADO) {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-// Nome dos buckets de Storage (criar no painel do Supabase, ambos como "Public")
+// Buckets de Storage (públicos)
 const BUCKET_FOTOS = "fotos";
 const BUCKET_DOCUMENTOS = "documentos";
+
+// Identidade visual Boxer (logo copiado do site boxersoldas.com.br)
+const LOGO_PRETA_URL = SUPABASE_URL + "/storage/v1/object/public/fotos/marca/logo-boxer-preta.png";
+const LOGO_BRANCA_URL = SUPABASE_URL + "/storage/v1/object/public/fotos/marca/logo-boxer-branca.png";
+const COR_MARCA = [214, 8, 8]; // vermelho Boxer
+const COR_ESCURA = [39, 38, 38]; // grafite do site
 
 function mostrarAvisoConfiguracao() {
   if (CONFIGURADO) return;
@@ -44,13 +45,136 @@ function showToast(message, type = "") {
 
 async function uploadArquivo(bucket, file, pastaPrefixo = "") {
   if (!CONFIGURADO) throw new Error("Supabase não configurado.");
-  const ext = file.name.split(".").pop();
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase();
   const nomeArquivo = `${pastaPrefixo}${crypto.randomUUID()}.${ext}`;
   const { error } = await supabaseClient.storage.from(bucket).upload(nomeArquivo, file, {
     cacheControl: "3600",
     upsert: false,
+    contentType: file.type || undefined,
   });
   if (error) throw error;
   const { data } = supabaseClient.storage.from(bucket).getPublicUrl(nomeArquivo);
   return data.publicUrl;
 }
+
+// ---------------- Utilitários comuns ----------------
+
+// "José da Silva " -> "JOSE DA SILVA" (sem acentos, espaços extras ou caixa)
+function normalizarNome(str) {
+  return String(str || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[_\.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function escHtml(str) {
+  if (str == null) return "";
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function formatarDataBR(dateStr) {
+  if (!dateStr) return "-";
+  const [y, m, d] = String(dateStr).slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function hojeISOLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function diasAte(dataISO) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const alvo = new Date(dataISO + "T00:00:00");
+  return Math.round((alvo - hoje) / 86400000);
+}
+
+// ---------------- PDF com o logo da Boxer ----------------
+let _logoPdfCache = null;
+async function obterLogoPdf() {
+  if (_logoPdfCache) return _logoPdfCache;
+  try {
+    const blob = await fetch(LOGO_PRETA_URL).then((r) => {
+      if (!r.ok) throw new Error("logo");
+      return r.blob();
+    });
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    const dims = await new Promise((res) => {
+      const im = new Image();
+      im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight });
+      im.onerror = () => res({ w: 250, h: 68 });
+      im.src = dataUrl;
+    });
+    _logoPdfCache = { dataUrl, ...dims };
+  } catch (e) {
+    _logoPdfCache = null;
+  }
+  return _logoPdfCache;
+}
+
+// Desenha o cabeçalho padrão (logo + título + linha vermelha) e devolve o Y livre
+async function cabecalhoPdf(doc, titulo, linhas = []) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 14;
+  let y = 12;
+  const logo = await obterLogoPdf();
+  if (logo) {
+    const h = 12;
+    const w = (logo.w / logo.h) * h;
+    doc.addImage(logo.dataUrl, "PNG", marginX, y, w, h);
+  }
+  doc.setFontSize(8);
+  doc.setTextColor(110, 110, 110);
+  doc.setFont("helvetica", "normal");
+  doc.text("Brigada de Incêndio", pageWidth - marginX, y + 4, { align: "right" });
+  doc.text("Emitido em " + new Date().toLocaleDateString("pt-BR"), pageWidth - marginX, y + 9, { align: "right" });
+  y += 16;
+  doc.setDrawColor(...COR_MARCA);
+  doc.setLineWidth(0.8);
+  doc.line(marginX, y, pageWidth - marginX, y);
+  y += 9;
+
+  doc.setTextColor(...COR_ESCURA);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text(titulo, pageWidth / 2, y, { align: "center" });
+  y += 7;
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(40, 40, 40);
+  linhas.forEach((l) => {
+    doc.text(l, pageWidth / 2, y, { align: "center" });
+    y += 5.5;
+  });
+  return y + 4;
+}
+
+// Rodapé com numeração em todas as páginas
+function rodapePdf(doc) {
+  const n = doc.internal.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text("Boxer Soldas · Brigada de Incêndio", 14, pageHeight - 8);
+    doc.text(`Página ${i} de ${n}`, pageWidth - 14, pageHeight - 8, { align: "right" });
+  }
+}
+
+const CORES_TABELA_PDF = { fillColor: COR_ESCURA, textColor: [255, 255, 255] };

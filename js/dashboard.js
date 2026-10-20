@@ -52,17 +52,23 @@ async function carregarDashboard() {
   }
 
   try {
-    const [brigadistasRes, acoesRes, extintoresRes, hidrantesRes, inspExtRes, inspHidRes] = await Promise.all([
-      supabaseClient.from("brigadistas").select("*").eq("ativo", true),
+    const [brigadistasRes, acoesRes, extintoresRes, hidrantesRes, inspExtRes, inspHidRes, docsRes] = await Promise.all([
+      supabaseClient.from("brigadistas").select("*").eq("ativo", true).eq("e_brigadista", true),
       supabaseClient.from("acoes").select("*"),
       supabaseClient.from("extintores").select("*").eq("ativo", true),
       supabaseClient.from("hidrantes").select("*").eq("ativo", true),
       supabaseClient.from("inspecoes_extintor").select("extintor_id, data_inspecao"),
       supabaseClient.from("inspecoes_hidrante").select("hidrante_id, data_inspecao"),
+      supabaseClient.from("documentos").select("*"),
     ]);
 
     const brigadistas = brigadistasRes.data || [];
-    const acoes = acoesRes.data || [];
+    const todasAcoes = acoesRes.data || [];
+    const acoes = todasAcoes.filter((a) => a.encaminhamento !== "Pauta Geral");
+    const itensLideresPendentes = todasAcoes.filter(
+      (a) => a.origem === "Reunião de Líderes" && ["Pauta Geral", "Ação Geral"].includes(a.encaminhamento) && !a.ata_geral_id
+    );
+    const documentos = docsRes.data || [];
     const extintores = extintoresRes.data || [];
     const hidrantes = hidrantesRes.data || [];
     const inspecoesExt = inspExtRes.data || [];
@@ -171,6 +177,55 @@ async function carregarDashboard() {
         badge: '<span class="badge badge-danger">Inspeção</span>',
       });
     });
+
+    // ---------------- Documentos (Atestado e certificados) ----------------
+    const atestados = documentos
+      .filter((d) => d.tipo === "Atestado da Brigada")
+      .sort((a, b) => (b.data_validade || "").localeCompare(a.data_validade || ""));
+    if (!atestados.length) {
+      alertas.unshift({
+        titulo: "Atestado da Brigada não arquivado",
+        sub: "Arquive o atestado no menu Certificados e Atestado",
+        badge: '<span class="badge badge-danger">Documento</span>',
+      });
+    } else if (atestados[0].data_validade && diasEntreDash(atestados[0].data_validade) <= 60) {
+      const dias = diasEntreDash(atestados[0].data_validade);
+      alertas.unshift({
+        titulo: "Atestado da Brigada",
+        sub: dias < 0 ? `Vencido há ${Math.abs(dias)} dia(s)` : `Vence em ${dias} dia(s)`,
+        badge: dias < 0 ? '<span class="badge badge-danger">Vencido</span>' : '<span class="badge badge-warn">Documento</span>',
+      });
+    }
+
+    const certificados = documentos.filter((d) => d.tipo === "Certificado de Formação");
+    const certValidoTurma = certificados.some((d) => !d.brigadista_id && (!d.data_validade || diasEntreDash(d.data_validade) >= 0));
+    const semCertificado = brigadistas.filter(
+      (b) => !certificados.some((d) => d.brigadista_id === b.id && (!d.data_validade || diasEntreDash(d.data_validade) >= 0))
+    );
+    if (semCertificado.length && !certValidoTurma) {
+      alertas.push({
+        titulo: `${semCertificado.length} brigadista(s) sem certificado de formação válido`,
+        sub: semCertificado.slice(0, 6).map((b) => b.nome).join(", ") + (semCertificado.length > 6 ? "..." : ""),
+        badge: '<span class="badge badge-warn">Certificado</span>',
+      });
+    }
+    certificados
+      .filter((d) => d.data_validade && diasEntreDash(d.data_validade) >= 0 && diasEntreDash(d.data_validade) <= 60)
+      .forEach((d) => {
+        alertas.push({
+          titulo: "Certificado vencendo: " + d.titulo,
+          sub: `Vence em ${diasEntreDash(d.data_validade)} dia(s)`,
+          badge: '<span class="badge badge-warn">Certificado</span>',
+        });
+      });
+
+    if (itensLideresPendentes.length) {
+      alertas.push({
+        titulo: `${itensLideresPendentes.length} item(ns) da Reunião de Líderes aguardando a Reunião Geral`,
+        sub: itensLideresPendentes.slice(0, 4).map((a) => a.descricao).join(" · "),
+        badge: '<span class="badge badge-brigada">Reunião</span>',
+      });
+    }
 
     renderAlertas(alertas);
   } catch (err) {

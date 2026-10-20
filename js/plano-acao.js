@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("filtro-status").addEventListener("change", renderTabelaAcoes);
   document.getElementById("ordenar-por").addEventListener("change", renderTabelaAcoes);
   document.getElementById("busca-acao").addEventListener("input", renderTabelaAcoes);
+  document.getElementById("filtro-origem").addEventListener("change", renderTabelaAcoes);
 });
 
 // ---------------- Brigadistas (autocomplete do responsável) ----------------
@@ -25,6 +26,7 @@ async function carregarBrigadistasPlano() {
       .from("brigadistas")
       .select("nome")
       .eq("ativo", true)
+      .eq("e_brigadista", true)
       .order("nome");
     if (error) throw error;
     brigadistasParaDatalistPlano = data || [];
@@ -53,7 +55,8 @@ async function carregarAcoes() {
   try {
     const { data, error } = await supabaseClient.from("acoes").select("*");
     if (error) throw error;
-    acoesCache = data || [];
+    // Pautas encaminhadas pelos líderes não são ações do plano
+    acoesCache = (data || []).filter((a) => a.encaminhamento !== "Pauta Geral");
 
     // Confronta o prazo com a data atual e mantém o status sempre correto
     const atualizacoes = [];
@@ -89,8 +92,13 @@ function obterListaFiltradaOrdenada() {
   const filtroStatus = document.getElementById("filtro-status").value;
   const ordenarPor = document.getElementById("ordenar-por").value;
   const busca = document.getElementById("busca-acao").value.trim().toLowerCase();
+  const filtroOrigem = document.getElementById("filtro-origem").value;
 
   let lista = [...acoesCache];
+
+  if (filtroOrigem !== "todas") {
+    lista = lista.filter((a) => a.origem === filtroOrigem);
+  }
 
   if (filtroStatus !== "todas") {
     lista = lista.filter((a) => a.status === filtroStatus);
@@ -134,7 +142,7 @@ function renderTabelaAcoes() {
       <td><input type="date" class="campo-inline" data-id="${a.id}" data-campo="prazo" value="${a.prazo || ""}" style="border:none;background:transparent;" /></td>
       <td><input type="date" class="campo-inline" data-id="${a.id}" data-campo="data_conclusao" value="${a.data_conclusao || ""}" style="border:none;background:transparent;" /></td>
       <td>${badgeStatus(a.status)}</td>
-      <td><span class="badge badge-muted">${escapeAttr(a.origem)}</span></td>
+      <td>${badgeOrigem(a)}</td>
       <td><button class="btn btn-secondary btn-excluir-acao" data-id="${a.id}">🗑️</button></td>
     `;
     tbody.appendChild(tr);
@@ -148,6 +156,21 @@ function renderTabelaAcoes() {
   tbody.querySelectorAll(".btn-excluir-acao").forEach((btn) => {
     btn.addEventListener("click", () => excluirAcao(btn.dataset.id));
   });
+}
+
+function badgeOrigem(a) {
+  let html = `<span class="badge badge-muted">${escapeAttr(a.origem)}</span>`;
+  if (a.origem === "Reunião de Líderes" && a.encaminhamento === "Ação Geral") {
+    html += a.ata_geral_id
+      ? '<div class="small text-muted" style="margin-top:3px;">→ levada à Reunião Geral</div>'
+      : '<div class="small" style="margin-top:3px;color:#92400e;">→ aguardando Reunião Geral</div>';
+  }
+  return html;
+}
+
+function textoOrigem(a) {
+  if (a.origem === "Reunião de Líderes" && a.encaminhamento === "Ação Geral") return a.origem + (a.ata_geral_id ? " → Geral" : " (p/ Geral)");
+  return a.origem;
 }
 
 function badgeStatus(status) {
@@ -227,7 +250,7 @@ async function excluirAcao(id) {
 }
 
 // ---------------- Exportar PDF ----------------
-function exportarPlanoPDF() {
+async function exportarPlanoPDF() {
   const lista = obterListaFiltradaOrdenada();
   if (lista.length === 0) {
     showToast("Não há ações para exportar.", "error");
@@ -235,20 +258,10 @@ function exportarPlanoPDF() {
   }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  doc.setTextColor(225, 29, 46);
-  doc.setFontSize(15);
-  doc.setFont("helvetica", "bold");
-  doc.text("BRIGADA BOXER - Plano de Ação", pageWidth / 2, 16, { align: "center" });
-
-  doc.setTextColor(30, 30, 30);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Gerado em " + new Date().toLocaleDateString("pt-BR"), pageWidth / 2, 22, { align: "center" });
+  const y = await cabecalhoPdf(doc, "Plano de Ação da Brigada", [`${lista.length} ação(ões)`]);
 
   doc.autoTable({
-    startY: 28,
+    startY: y,
     head: [["Descrição", "Responsável", "Prazo", "Conclusão", "Status", "Origem"]],
     body: lista.map((a) => [
       a.descricao,
@@ -256,11 +269,13 @@ function exportarPlanoPDF() {
       formatarDataPlano(a.prazo),
       formatarDataPlano(a.data_conclusao),
       a.status,
-      a.origem,
+      textoOrigem(a),
     ]),
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [31, 78, 121] },
+    headStyles: CORES_TABELA_PDF,
+    margin: { left: 14, right: 14, bottom: 16 },
   });
+  rodapePdf(doc);
 
   doc.save("brigada-boxer-plano-de-acao.pdf");
 }

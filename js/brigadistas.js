@@ -1,18 +1,35 @@
 // =========================================================================
-// BRIGADA BOXER - Cadastro e gestão de Brigadistas
+// BRIGADA BOXER - Colaboradores (lista fixa, ativo/inativo) e Brigadistas
 // =========================================================================
 
-let brigadistasCache = [];
+const CARGOS = ["Coordenador", "Líder de Área", "Integrante"];
+const FUNCOES = [
+  "Socorrista",
+  "Combatente",
+  "Socorrista e Combatente",
+  "Socorrista e Líder de Abandono",
+  "Combatente e Líder de Abandono",
+  "Socorrista, Combatente e Líder de Abandono",
+];
+const FOTO_PADRAO = "https://placehold.co/96x96?text=Foto";
+
+let colaboradores = [];
 let fotoArquivoSelecionado = null;
+let importacaoPendente = null;
+let fotosPendentes = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   mostrarAvisoConfiguracao();
   setupTabs();
-  setupForm();
-  carregarBrigadistas();
+  setupModal();
+  setupFiltros();
+  setupImportacaoPlanilha();
+  setupImportacaoFotos();
 
   document.getElementById("btn-print-quadro").addEventListener("click", () => window.print());
   document.getElementById("btn-export-pdf").addEventListener("click", exportarListaPDF);
+
+  carregarColaboradores();
 });
 
 // ---------------- Tabs ----------------
@@ -28,175 +45,85 @@ function setupTabs() {
   });
 }
 
-// ---------------- Form ----------------
-function setupForm() {
-  document.getElementById("foto-input").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    fotoArquivoSelecionado = file;
-    document.getElementById("foto-preview").src = URL.createObjectURL(file);
-  });
-
-  document.getElementById("form-brigadista").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await salvarBrigadista();
-  });
-
-  document.getElementById("btn-cancelar-edicao").addEventListener("click", resetarFormulario);
-}
-
-function resetarFormulario() {
-  document.getElementById("form-brigadista").reset();
-  document.getElementById("brigadista-id").value = "";
-  document.getElementById("foto-preview").src = "https://placehold.co/96x96?text=Foto";
-  document.getElementById("form-title").textContent = "Novo Brigadista";
-  document.getElementById("btn-cancelar-edicao").style.display = "none";
-  fotoArquivoSelecionado = null;
-}
-
-async function salvarBrigadista() {
-  if (!CONFIGURADO) {
-    showToast("Configure o Supabase antes de salvar (js/supabaseClient.js).", "error");
-    return;
-  }
-
-  const id = document.getElementById("brigadista-id").value;
-  const nome = document.getElementById("campo-nome").value.trim();
-  const cargo = document.getElementById("campo-cargo").value;
-  const area = document.getElementById("campo-area").value;
-  const piso = document.getElementById("campo-piso").value;
-  const funcao = document.getElementById("campo-funcao").value;
-
-  if (!nome || !cargo || !area || !piso || !funcao) {
-    showToast("Preencha todos os campos obrigatórios.", "error");
-    return;
-  }
-
-  const submitBtn = document.querySelector("#form-brigadista button[type=submit]");
-  submitBtn.disabled = true;
-  submitBtn.textContent = "Salvando...";
-
-  try {
-    let foto_url;
-    if (fotoArquivoSelecionado) {
-      foto_url = await uploadArquivo(BUCKET_FOTOS, fotoArquivoSelecionado, "brigadistas/");
-    }
-
-    const payload = { nome, cargo, area, piso, funcao, updated_at: new Date().toISOString() };
-    if (foto_url) payload.foto_url = foto_url;
-
-    if (id) {
-      const { error } = await supabaseClient.from("brigadistas").update(payload).eq("id", id);
-      if (error) throw error;
-      showToast("Brigadista atualizado com sucesso!", "success");
-    } else {
-      const { error } = await supabaseClient.from("brigadistas").insert(payload);
-      if (error) throw error;
-      showToast("Brigadista cadastrado com sucesso!", "success");
-    }
-
-    resetarFormulario();
-    await carregarBrigadistas();
-  } catch (err) {
-    console.error(err);
-    showToast("Erro ao salvar: " + err.message, "error");
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = "💾 Salvar Brigadista";
-  }
-}
-
-function editarBrigadista(id) {
-  const b = brigadistasCache.find((x) => x.id === id);
-  if (!b) return;
-  document.getElementById("brigadista-id").value = b.id;
-  document.getElementById("campo-nome").value = b.nome;
-  document.getElementById("campo-cargo").value = b.cargo;
-  document.getElementById("campo-area").value = b.area;
-  document.getElementById("campo-piso").value = b.piso;
-  document.getElementById("campo-funcao").value = b.funcao;
-  document.getElementById("foto-preview").src = b.foto_url || "https://placehold.co/96x96?text=Foto";
-  document.getElementById("form-title").textContent = "Editar Brigadista";
-  document.getElementById("btn-cancelar-edicao").style.display = "inline-flex";
-  fotoArquivoSelecionado = null;
-  document.querySelector('.tab-btn[data-tab="cadastro"]').click();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-async function excluirBrigadista(id) {
-  if (!confirm("Tem certeza que deseja excluir este brigadista?")) return;
-  try {
-    const { error } = await supabaseClient.from("brigadistas").delete().eq("id", id);
-    if (error) throw error;
-    showToast("Brigadista removido.", "success");
-    await carregarBrigadistas();
-  } catch (err) {
-    showToast("Erro ao excluir: " + err.message, "error");
-  }
-}
-
 // ---------------- Carregamento ----------------
-async function carregarBrigadistas() {
-  if (!CONFIGURADO) {
-    renderOrgChart([]);
-    renderLista([]);
-    return;
-  }
+async function carregarColaboradores() {
+  if (!CONFIGURADO) return;
   try {
-    const { data, error } = await supabaseClient
-      .from("brigadistas")
-      .select("*")
-      .eq("ativo", true)
-      .order("nome");
+    const { data, error } = await supabaseClient.from("brigadistas").select("*").order("nome");
     if (error) throw error;
-    brigadistasCache = data || [];
+    colaboradores = data || [];
   } catch (err) {
     console.error(err);
-    showToast("Erro ao carregar brigadistas: " + err.message, "error");
-    brigadistasCache = [];
+    showToast("Erro ao carregar colaboradores: " + err.message, "error");
+    colaboradores = [];
   }
-  renderOrgChart(brigadistasCache);
-  renderLista(brigadistasCache);
+  atualizarDatalists();
+  renderIndicadores();
+  renderOrgChart();
+  renderTabela();
+}
+
+function brigadistasAtivos() {
+  return colaboradores.filter((c) => c.ativo && c.e_brigadista);
+}
+
+function valoresUnicos(campo) {
+  return [...new Set(colaboradores.map((c) => (c[campo] || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function atualizarDatalists() {
+  const preencher = (id, valores) => {
+    document.getElementById(id).innerHTML = valores.map((v) => `<option value="${escHtml(v)}"></option>`).join("");
+  };
+  preencher("dl-vinculo", valoresUnicos("vinculo"));
+  preencher("dl-local", valoresUnicos("piso"));
+  preencher("dl-area", valoresUnicos("area"));
+  preencher("dl-depto", valoresUnicos("departamento"));
+
+  const sel = document.getElementById("filtro-local");
+  const atual = sel.value;
+  sel.innerHTML = '<option value="">Todas</option>' + valoresUnicos("piso").map((v) => `<option>${escHtml(v)}</option>`).join("");
+  sel.value = atual;
+}
+
+function renderIndicadores() {
+  document.getElementById("ind-ativos").textContent = colaboradores.filter((c) => c.ativo).length;
+  document.getElementById("ind-brigadistas").textContent = brigadistasAtivos().length;
+  document.getElementById("ind-inativos").textContent = colaboradores.filter((c) => !c.ativo).length;
+  document.getElementById("ind-sem-foto").textContent = colaboradores.filter((c) => c.ativo && !c.foto_url).length;
 }
 
 // ---------------- Quadro Hierárquico ----------------
-function renderOrgChart(lista) {
+function renderOrgChart() {
   const container = document.getElementById("orgchart-container");
   container.innerHTML = "";
+  const lista = brigadistasAtivos();
 
   if (lista.length === 0) {
-    container.innerHTML = '<div class="empty-state">Nenhum brigadista cadastrado ainda.</div>';
+    container.innerHTML = '<div class="empty-state">Nenhum brigadista ativo. Marque os colaboradores da brigada na aba Colaboradores.</div>';
     return;
   }
 
-  const coordenadores = lista.filter((b) => b.cargo === "Coordenador");
-  const lideres = lista.filter((b) => b.cargo === "Líder de Área");
-  const integrantes = lista.filter((b) => b.cargo === "Integrante");
-
-  container.appendChild(criarLinhaOrg("Coordenação", coordenadores, "coordenador"));
-  container.appendChild(criarLinhaOrg("Líderes de Área", lideres, "lider"));
-  container.appendChild(criarLinhaOrg("Socorristas e Combatentes", integrantes, "integrante"));
+  container.appendChild(criarLinhaOrg("Coordenação", lista.filter((b) => b.cargo === "Coordenador"), "coordenador"));
+  container.appendChild(criarLinhaOrg("Líderes de Área", lista.filter((b) => b.cargo === "Líder de Área"), "lider"));
+  container.appendChild(criarLinhaOrg("Socorristas e Combatentes", lista.filter((b) => b.cargo === "Integrante"), "integrante"));
 }
 
 function criarLinhaOrg(titulo, pessoas, classe) {
   const wrapper = document.createElement("div");
+  wrapper.style.width = "100%";
   if (pessoas.length === 0) return wrapper;
-
-  const label = document.createElement("div");
-  label.className = "org-row-label";
-  label.textContent = titulo;
-  wrapper.appendChild(label);
-
+  wrapper.innerHTML = `<div class="org-row-label">${titulo}</div>`;
   const row = document.createElement("div");
   row.className = "org-row";
   pessoas.forEach((p) => {
     const card = document.createElement("div");
     card.className = "org-card " + classe;
     card.innerHTML = `
-      <img class="avatar" src="${p.foto_url || "https://placehold.co/64x64?text=Foto"}" />
-      <div class="nome">${escapeHtml(p.nome)}</div>
-      <div class="info">${escapeHtml(p.funcao)}</div>
-      <div class="info">${escapeHtml(p.area)}</div>
+      <img class="avatar" src="${escHtml(p.foto_url || FOTO_PADRAO)}" />
+      <div class="nome">${escHtml(p.nome)}</div>
+      <div class="info">${escHtml(p.funcao)}</div>
+      <div class="info">${escHtml([p.departamento || p.area, p.piso].filter(Boolean).join(" · "))}</div>
     `;
     row.appendChild(card);
   });
@@ -204,65 +131,515 @@ function criarLinhaOrg(titulo, pessoas, classe) {
   return wrapper;
 }
 
-// ---------------- Lista ----------------
-function renderLista(lista) {
-  const tbody = document.getElementById("tabela-lista-body");
-  const emptyState = document.getElementById("lista-empty");
+// ---------------- Lista de colaboradores ----------------
+function setupFiltros() {
+  ["filtro-busca", "filtro-situacao", "filtro-brigada", "filtro-local"].forEach((id) => {
+    document.getElementById(id).addEventListener(id === "filtro-busca" ? "input" : "change", renderTabela);
+  });
+}
+
+function listaFiltrada() {
+  const busca = normalizarNome(document.getElementById("filtro-busca").value);
+  const situacao = document.getElementById("filtro-situacao").value;
+  const brigada = document.getElementById("filtro-brigada").value;
+  const local = document.getElementById("filtro-local").value;
+
+  return colaboradores.filter((c) => {
+    if (situacao === "ativos" && !c.ativo) return false;
+    if (situacao === "inativos" && c.ativo) return false;
+    if (brigada === "sim" && !c.e_brigadista) return false;
+    if (brigada === "nao" && c.e_brigadista) return false;
+    if (local && (c.piso || "") !== local) return false;
+    if (busca) {
+      const alvo = normalizarNome([c.nome, c.area, c.departamento, c.vinculo].join(" "));
+      if (!alvo.includes(busca)) return false;
+    }
+    return true;
+  });
+}
+
+function renderTabela() {
+  const lista = listaFiltrada();
+  const tbody = document.getElementById("tabela-colab-body");
   tbody.innerHTML = "";
+  document.getElementById("colab-empty").style.display = lista.length ? "none" : "block";
+  document.getElementById("colab-contagem").textContent = `${lista.length} de ${colaboradores.length} colaborador(es)`;
 
-  if (lista.length === 0) {
-    emptyState.style.display = "block";
-    return;
-  }
-  emptyState.style.display = "none";
-
-  lista.forEach((b) => {
+  lista.forEach((c) => {
     const tr = document.createElement("tr");
+    if (!c.ativo) tr.className = "linha-inativa";
+    const brigada = c.e_brigadista
+      ? `<span class="badge badge-brigada">${escHtml(c.cargo)}</span><div class="small text-muted">${escHtml(c.funcao)}</div>`
+      : '<span class="text-muted small">—</span>';
     tr.innerHTML = `
-      <td><img class="avatar" src="${b.foto_url || "https://placehold.co/40x40?text=?"}" /></td>
-      <td>${escapeHtml(b.nome)}</td>
-      <td>${escapeHtml(b.cargo)}</td>
-      <td>${escapeHtml(b.area)}</td>
-      <td>${escapeHtml(b.piso)}</td>
-      <td>${escapeHtml(b.funcao)}</td>
-      <td class="row">
-        <button class="btn btn-secondary" onclick="editarBrigadista('${b.id}')">✏️</button>
-        <button class="btn btn-secondary" onclick="excluirBrigadista('${b.id}')">🗑️</button>
-      </td>
+      <td><img class="avatar avatar-sm" src="${escHtml(c.foto_url || FOTO_PADRAO)}" /></td>
+      <td><b>${escHtml(c.nome)}</b></td>
+      <td>${escHtml(c.vinculo || "-")}</td>
+      <td>${escHtml(c.area || "-")}<div class="small text-muted">${escHtml(c.departamento || "")}</div></td>
+      <td>${escHtml(c.piso || "-")}</td>
+      <td>${brigada}</td>
+      <td><button class="btn-situacao ${c.ativo ? "ativo" : "inativo"}" data-id="${c.id}" title="Clique para alterar">${c.ativo ? "Ativo" : "Inativo"}</button></td>
+      <td><button class="btn btn-secondary btn-editar" data-id="${c.id}" title="Editar">✏️</button></td>
     `;
     tbody.appendChild(tr);
   });
+
+  tbody.querySelectorAll(".btn-editar").forEach((b) => b.addEventListener("click", () => abrirModal(b.dataset.id)));
+  tbody.querySelectorAll(".btn-situacao").forEach((b) => b.addEventListener("click", () => alternarSituacao(b.dataset.id)));
 }
 
-function exportarListaPDF() {
-  if (brigadistasCache.length === 0) {
-    showToast("Não há brigadistas para exportar.", "error");
-    return;
+async function alternarSituacao(id) {
+  const c = colaboradores.find((x) => x.id === id);
+  if (!c) return;
+  const novo = !c.ativo;
+  if (!novo && c.e_brigadista && !confirm(`${c.nome} é brigadista. Ao inativar, deixa de aparecer no quadro, nas assinaturas e nas inspeções. Continuar?`)) return;
+  try {
+    const { error } = await supabaseClient.from("brigadistas").update({ ativo: novo, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+    c.ativo = novo;
+    showToast(`${c.nome}: ${novo ? "ativo" : "inativo"}.`, "success");
+    renderIndicadores();
+    renderOrgChart();
+    renderTabela();
+  } catch (err) {
+    showToast("Erro ao alterar situação: " + err.message, "error");
   }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
+}
 
-  doc.setFontSize(16);
-  doc.text("BRIGADA BOXER - Lista de Integrantes", 14, 16);
-  doc.setFontSize(10);
-  doc.text("Gerado em " + new Date().toLocaleDateString("pt-BR"), 14, 22);
+// ---------------- Modal (novo / editar) ----------------
+function setupModal() {
+  document.getElementById("btn-novo").addEventListener("click", () => abrirModal(null));
+  document.getElementById("modal-fechar").addEventListener("click", fecharModal);
+  document.getElementById("btn-cancelar").addEventListener("click", fecharModal);
+  document.getElementById("modal-colab").addEventListener("click", (e) => {
+    if (e.target.id === "modal-colab") fecharModal();
+  });
+  document.getElementById("campo-brigadista").addEventListener("change", atualizarCamposBrigada);
+  document.getElementById("foto-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    fotoArquivoSelecionado = file;
+    document.getElementById("foto-preview").src = URL.createObjectURL(file);
+  });
+  document.getElementById("form-colab").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await salvarColaborador();
+  });
+}
 
-  const rows = brigadistasCache.map((b) => [b.nome, b.cargo, b.area, b.piso, b.funcao]);
-  doc.autoTable({
-    startY: 28,
-    head: [["Nome", "Cargo", "Área", "Piso", "Função"]],
-    body: rows,
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [193, 18, 31] },
+function atualizarCamposBrigada() {
+  const on = document.getElementById("campo-brigadista").checked;
+  document.getElementById("campos-brigada").style.display = on ? "grid" : "none";
+}
+
+function abrirModal(id) {
+  const c = id ? colaboradores.find((x) => x.id === id) : null;
+  document.getElementById("form-colab").reset();
+  fotoArquivoSelecionado = null;
+  document.getElementById("modal-titulo").textContent = c ? "Editar colaborador" : "Novo colaborador";
+  document.getElementById("colab-id").value = c ? c.id : "";
+  document.getElementById("campo-nome").value = c ? c.nome : "";
+  document.getElementById("campo-vinculo").value = c ? c.vinculo || "" : "";
+  document.getElementById("campo-local").value = c ? c.piso || "" : "";
+  document.getElementById("campo-area").value = c ? c.area || "" : "";
+  document.getElementById("campo-depto").value = c ? c.departamento || "" : "";
+  document.getElementById("campo-ativo").checked = c ? c.ativo : true;
+  document.getElementById("campo-brigadista").checked = c ? c.e_brigadista : false;
+  document.getElementById("campo-cargo").value = c ? c.cargo || "" : "";
+  document.getElementById("campo-funcao").value = c ? c.funcao || "" : "";
+  document.getElementById("foto-preview").src = (c && c.foto_url) || FOTO_PADRAO;
+  atualizarCamposBrigada();
+  document.getElementById("modal-colab").style.display = "flex";
+}
+
+function fecharModal() {
+  document.getElementById("modal-colab").style.display = "none";
+}
+
+async function salvarColaborador() {
+  if (!CONFIGURADO) return;
+  const id = document.getElementById("colab-id").value;
+  const nome = document.getElementById("campo-nome").value.replace(/\s+/g, " ").trim();
+  const eBrig = document.getElementById("campo-brigadista").checked;
+  const cargo = document.getElementById("campo-cargo").value;
+  const funcao = document.getElementById("campo-funcao").value;
+
+  if (!nome) return showToast("Informe o nome.", "error");
+  if (eBrig && (!cargo || !funcao)) return showToast("Para brigadista, escolha o cargo e a função.", "error");
+
+  const duplicado = colaboradores.find((c) => c.id !== id && normalizarNome(c.nome) === normalizarNome(nome));
+  if (duplicado) return showToast("Já existe um colaborador com esse nome.", "error");
+
+  const payload = {
+    nome,
+    vinculo: document.getElementById("campo-vinculo").value.trim() || null,
+    piso: document.getElementById("campo-local").value.trim().toUpperCase() || null,
+    area: document.getElementById("campo-area").value.trim() || null,
+    departamento: document.getElementById("campo-depto").value.trim() || null,
+    ativo: document.getElementById("campo-ativo").checked,
+    e_brigadista: eBrig,
+    cargo: eBrig ? cargo : null,
+    funcao: eBrig ? funcao : null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const btn = document.querySelector("#form-colab button[type=submit]");
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+  try {
+    if (fotoArquivoSelecionado) {
+      const reduzida = await reduzirImagem(fotoArquivoSelecionado);
+      payload.foto_url = await uploadArquivo(BUCKET_FOTOS, reduzida, "colaboradores/");
+    }
+    const q = id
+      ? supabaseClient.from("brigadistas").update(payload).eq("id", id)
+      : supabaseClient.from("brigadistas").insert(payload);
+    const { error } = await q;
+    if (error) throw error;
+    showToast("Salvo com sucesso!", "success");
+    fecharModal();
+    await carregarColaboradores();
+  } catch (err) {
+    console.error(err);
+    showToast("Erro ao salvar: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "💾 Salvar";
+  }
+}
+
+// ---------------- Importação de planilha ----------------
+const MAPA_COLUNAS = {
+  NOME: "nome",
+  "NOME COMPLETO": "nome",
+  COLABORADOR: "nome",
+  VINCULO: "vinculo",
+  AREA: "area",
+  DEPARTAMENTO: "departamento",
+  SETOR: "departamento",
+  LOCALIZACAO: "piso",
+  LOCAL: "piso",
+  PISO: "piso",
+  ANDAR: "piso",
+  CARGO: "cargo",
+  "CARGO NA BRIGADA": "cargo",
+  "CARGO BRIGADA": "cargo",
+  FUNCAO: "funcao",
+  "FUNCAO NA BRIGADA": "funcao",
+  "FUNCAO BRIGADA": "funcao",
+  SITUACAO: "situacao",
+  STATUS: "situacao",
+  ATIVO: "situacao",
+};
+
+function setupImportacaoPlanilha() {
+  document.getElementById("btn-modelo").addEventListener("click", baixarModelo);
+  document.getElementById("input-planilha").addEventListener("change", lerPlanilha);
+  document.getElementById("chk-inativar-ausentes").addEventListener("change", () => {
+    if (importacaoPendente) prepararImportacao(importacaoPendente.linhas);
+  });
+  document.getElementById("btn-importar").addEventListener("click", executarImportacao);
+}
+
+function baixarModelo() {
+  const linhas = [
+    ["Nome", "Vínculo", "Área", "Departamento", "Localização", "Cargo na Brigada", "Função na Brigada", "Situação"],
+    ["MARIA DA SILVA", "CLT", "Comercial", "Vendas", "1º ANDAR", "Integrante", "Socorrista", "Ativo"],
+    ["JOÃO SOUZA", "PJ", "Operações", "Logística", "TÉRREO", "", "", "Ativo"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(linhas);
+  ws["!cols"] = [{ wch: 38 }, { wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 14 }, { wch: 18 }, { wch: 40 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Colaboradores");
+  XLSX.writeFile(wb, "modelo-importacao-colaboradores.xlsx");
+}
+
+function casarOpcao(valor, opcoes) {
+  const n = normalizarNome(valor);
+  if (!n) return "";
+  return opcoes.find((o) => normalizarNome(o) === n) || null;
+}
+
+async function lerPlanilha(e) {
+  const file = e.target.files[0];
+  importacaoPendente = null;
+  document.getElementById("btn-importar").disabled = true;
+  if (!file) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const brutas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+    const idxCab = brutas.findIndex((l) => l.some((c) => MAPA_COLUNAS[normalizarNome(c)] === "nome"));
+    if (idxCab < 0) throw new Error('Não encontrei a coluna "Nome" na planilha.');
+    const cab = brutas[idxCab].map((c) => MAPA_COLUNAS[normalizarNome(c)] || null);
+    const linhas = brutas
+      .slice(idxCab + 1)
+      .map((l) => {
+        const o = {};
+        cab.forEach((campo, i) => {
+          if (campo && o[campo] === undefined) o[campo] = String(l[i] ?? "").replace(/\s+/g, " ").trim();
+        });
+        return o;
+      })
+      .filter((o) => o.nome);
+    prepararImportacao(linhas);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("previa-importacao").innerHTML = `<div class="config-warning">❌ ${escHtml(err.message)}</div>`;
+  }
+}
+
+function prepararImportacao(linhas) {
+  const existentes = new Map(colaboradores.map((c) => [normalizarNome(c.nome), c]));
+  const vistos = new Set();
+  const novos = [];
+  const atualizados = [];
+  const avisos = [];
+  let semMudanca = 0;
+
+  linhas.forEach((l, i) => {
+    const chave = normalizarNome(l.nome);
+    if (vistos.has(chave)) {
+      avisos.push(`Linha ${i + 2}: "${l.nome}" repetido na planilha (ignorado).`);
+      return;
+    }
+    vistos.add(chave);
+
+    const reg = {};
+    if ("vinculo" in l) reg.vinculo = l.vinculo || null;
+    if ("area" in l) reg.area = l.area || null;
+    if ("departamento" in l) reg.departamento = l.departamento || null;
+    if ("piso" in l) reg.piso = l.piso ? l.piso.toUpperCase() : null;
+
+    if (l.situacao) {
+      const s = normalizarNome(l.situacao);
+      if (["ATIVO", "ATIVA", "SIM", "S", "1"].includes(s)) reg.ativo = true;
+      else if (["INATIVO", "INATIVA", "NAO", "N", "0", "DESLIGADO", "DESLIGADA"].includes(s)) reg.ativo = false;
+      else avisos.push(`"${l.nome}": situação "${l.situacao}" não reconhecida (mantida).`);
+    }
+
+    if (l.cargo || l.funcao) {
+      const cargo = casarOpcao(l.cargo, CARGOS);
+      const funcao = casarOpcao(l.funcao, FUNCOES);
+      if (cargo && funcao) {
+        Object.assign(reg, { e_brigadista: true, cargo, funcao });
+      } else {
+        avisos.push(`"${l.nome}": cargo/função da brigada incompletos ou inválidos (não marcado como brigadista).`);
+      }
+    }
+
+    const atual = existentes.get(chave);
+    if (!atual) {
+      novos.push({ nome: l.nome, ativo: true, ...reg });
+    } else {
+      const mudou = Object.keys(reg).some((k) => (atual[k] ?? null) !== (reg[k] ?? null));
+      if (mudou) atualizados.push({ id: atual.id, nome: atual.nome, reg });
+      else semMudanca++;
+    }
   });
 
-  doc.save("brigada-boxer-integrantes.pdf");
+  const inativar = document.getElementById("chk-inativar-ausentes").checked
+    ? colaboradores.filter((c) => c.ativo && !vistos.has(normalizarNome(c.nome)))
+    : [];
+
+  importacaoPendente = { linhas, novos, atualizados, inativar };
+
+  const listaNomes = (arr, max = 12) =>
+    arr.length ? `<div class="small text-muted">${arr.slice(0, max).map((x) => escHtml(x.nome)).join(", ")}${arr.length > max ? ` e mais ${arr.length - max}` : ""}</div>` : "";
+
+  document.getElementById("previa-importacao").innerHTML = `
+    <div class="previa-grid">
+      <div class="previa-item ok"><b>${novos.length}</b> novos${listaNomes(novos)}</div>
+      <div class="previa-item warn"><b>${atualizados.length}</b> serão atualizados${listaNomes(atualizados)}</div>
+      <div class="previa-item"><b>${semMudanca}</b> sem alteração</div>
+      <div class="previa-item danger"><b>${inativar.length}</b> serão inativados${listaNomes(inativar)}</div>
+    </div>
+    ${avisos.length ? `<div class="config-warning mt-16"><b>Atenção:</b><br>${avisos.map(escHtml).join("<br>")}</div>` : ""}
+    <p class="small text-muted">${linhas.length} linha(s) lida(s) da planilha.</p>
+  `;
+  document.getElementById("btn-importar").disabled = novos.length + atualizados.length + inativar.length === 0;
 }
 
-function escapeHtml(str) {
-  if (str == null) return "";
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+async function executarImportacao() {
+  if (!importacaoPendente) return;
+  const { novos, atualizados, inativar } = importacaoPendente;
+  const btn = document.getElementById("btn-importar");
+  btn.disabled = true;
+  btn.textContent = "Importando...";
+  const agora = new Date().toISOString();
+  let erros = 0;
+  try {
+    for (let i = 0; i < novos.length; i += 200) {
+      const { error } = await supabaseClient.from("brigadistas").insert(novos.slice(i, i + 200).map((n) => ({ ...n, updated_at: agora })));
+      if (error) throw error;
+    }
+    const tarefas = [
+      ...atualizados.map((u) => () => supabaseClient.from("brigadistas").update({ ...u.reg, updated_at: agora }).eq("id", u.id)),
+      ...inativar.map((c) => () => supabaseClient.from("brigadistas").update({ ativo: false, updated_at: agora }).eq("id", c.id)),
+    ];
+    for (let i = 0; i < tarefas.length; i += 8) {
+      const res = await Promise.all(tarefas.slice(i, i + 8).map((t) => t()));
+      erros += res.filter((r) => r.error).length;
+    }
+    showToast(
+      `Importação concluída: ${novos.length} novos, ${atualizados.length} atualizados, ${inativar.length} inativados.` + (erros ? ` (${erros} erro(s))` : ""),
+      erros ? "error" : "success"
+    );
+    importacaoPendente = null;
+    document.getElementById("input-planilha").value = "";
+    document.getElementById("previa-importacao").innerHTML = "";
+    await carregarColaboradores();
+    document.querySelector('.tab-btn[data-tab="colaboradores"]').click();
+  } catch (err) {
+    console.error(err);
+    showToast("Erro na importação: " + err.message, "error");
+  } finally {
+    btn.textContent = "📥 Importar";
+    btn.disabled = !importacaoPendente;
+  }
+}
+
+// ---------------- Importação de fotos ----------------
+function setupImportacaoFotos() {
+  document.getElementById("input-fotos").addEventListener("change", prepararFotos);
+  document.getElementById("chk-substituir-fotos").addEventListener("change", () => renderPreviaFotos());
+  document.getElementById("btn-enviar-fotos").addEventListener("click", enviarFotos);
+}
+
+function encontrarColaboradorPorArquivo(nomeArquivo) {
+  const base = normalizarNome(nomeArquivo.replace(/\.[^.]+$/, "").replace(/[-]+/g, " "));
+  const exato = colaboradores.filter((c) => normalizarNome(c.nome) === base);
+  if (exato.length === 1) return { colab: exato[0] };
+  // Aproximação: todas as palavras do arquivo aparecem no nome (ex.: "PEDRO PAULO", "JÉSSICA RAMOS")
+  const palavras = base.split(" ").filter(Boolean);
+  let candidatos = colaboradores.filter((c) => {
+    const doNome = normalizarNome(c.nome).split(" ");
+    return palavras.every((p) => doNome.includes(p));
+  });
+  if (candidatos.length > 1) {
+    const ativos = candidatos.filter((c) => c.ativo);
+    if (ativos.length) candidatos = ativos;
+  }
+  if (candidatos.length === 1) return { colab: candidatos[0] };
+  return { colab: null, ambiguos: candidatos.map((c) => c.nome) };
+}
+
+function prepararFotos(e) {
+  fotosPendentes = [...e.target.files].map((file) => {
+    const r = encontrarColaboradorPorArquivo(file.name);
+    const legivel = /^image\/(jpeg|png|webp|gif|bmp)$/i.test(file.type) || /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name);
+    return { file, colab: legivel ? r.colab : null, ambiguos: r.ambiguos || [], formatoInvalido: !legivel, status: "" };
+  });
+  renderPreviaFotos();
+}
+
+function renderPreviaFotos() {
+  const substituir = document.getElementById("chk-substituir-fotos").checked;
+  const casadas = fotosPendentes.filter((f) => f.colab && (substituir || !f.colab.foto_url));
+  const semPar = fotosPendentes.filter((f) => !f.colab);
+  const div = document.getElementById("previa-fotos");
+  if (!fotosPendentes.length) {
+    div.innerHTML = "";
+    document.getElementById("btn-enviar-fotos").disabled = true;
+    return;
+  }
+  div.innerHTML = `
+    <div class="previa-grid">
+      <div class="previa-item ok"><b>${casadas.length}</b> foto(s) serão enviadas</div>
+      <div class="previa-item danger"><b>${semPar.length}</b> sem colaborador correspondente</div>
+    </div>
+    <div class="table-wrap mt-16"><table>
+      <thead><tr><th>Arquivo</th><th>Colaborador</th><th></th></tr></thead>
+      <tbody>${fotosPendentes
+        .map((f) => {
+          const pulada = f.colab && f.colab.foto_url && !substituir;
+          return `<tr>
+            <td class="small">${escHtml(f.file.name)}</td>
+            <td>${
+              f.colab
+                ? escHtml(f.colab.nome)
+                : f.formatoInvalido
+                ? '<span class="badge badge-danger">Formato não suportado (use JPG/PNG)</span>'
+                : f.ambiguos.length
+                ? `<span class="badge badge-warn">Mais de um possível</span> <span class="small text-muted">${escHtml(f.ambiguos.join(", "))} — renomeie com o nome completo</span>`
+                : '<span class="badge badge-danger">Não encontrado</span>'
+            }</td>
+            <td class="small">${f.status || (pulada ? '<span class="badge badge-muted">Já tem foto</span>' : "")}</td>
+          </tr>`;
+        })
+        .join("")}</tbody>
+    </table></div>
+  `;
+  document.getElementById("btn-enviar-fotos").disabled = casadas.length === 0;
+}
+
+async function enviarFotos() {
+  const substituir = document.getElementById("chk-substituir-fotos").checked;
+  const fila = fotosPendentes.filter((f) => f.colab && (substituir || !f.colab.foto_url));
+  const btn = document.getElementById("btn-enviar-fotos");
+  const prog = document.getElementById("progresso-fotos");
+  btn.disabled = true;
+  let ok = 0;
+  let falhas = 0;
+  for (let i = 0; i < fila.length; i++) {
+    const f = fila[i];
+    prog.textContent = `Enviando ${i + 1} de ${fila.length}...`;
+    try {
+      const reduzida = await reduzirImagem(f.file);
+      const url = await uploadArquivo(BUCKET_FOTOS, reduzida, "colaboradores/");
+      const { error } = await supabaseClient.from("brigadistas").update({ foto_url: url, updated_at: new Date().toISOString() }).eq("id", f.colab.id);
+      if (error) throw error;
+      f.colab.foto_url = url;
+      f.status = '<span class="badge badge-ok">Enviada</span>';
+      ok++;
+    } catch (err) {
+      console.error(err);
+      f.status = '<span class="badge badge-danger">Erro</span>';
+      falhas++;
+    }
+  }
+  prog.textContent = "";
+  renderPreviaFotos();
+  showToast(`${ok} foto(s) enviada(s)` + (falhas ? `, ${falhas} com erro.` : "."), falhas ? "error" : "success");
+  await carregarColaboradores();
+}
+
+// Reduz a foto para no máximo 600px (JPEG) antes de enviar
+async function reduzirImagem(file, max = 600) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const escala = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * escala);
+    canvas.height = Math.round(bmp.height * escala);
+    canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (e) {
+    return file;
+  }
+}
+
+// ---------------- PDF ----------------
+async function exportarListaPDF() {
+  const lista = brigadistasAtivos();
+  if (lista.length === 0) return showToast("Não há brigadistas ativos para exportar.", "error");
+  const ordemCargo = { Coordenador: 0, "Líder de Área": 1, Integrante: 2 };
+  lista.sort((a, b) => (ordemCargo[a.cargo] ?? 9) - (ordemCargo[b.cargo] ?? 9) || a.nome.localeCompare(b.nome));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const y = await cabecalhoPdf(doc, "Integrantes da Brigada de Incêndio", [`${lista.length} brigadista(s) ativo(s)`]);
+  doc.autoTable({
+    startY: y,
+    head: [["Nome", "Cargo", "Função", "Área / Depto.", "Localização"]],
+    body: lista.map((b) => [b.nome, b.cargo, b.funcao, [b.area, b.departamento].filter(Boolean).join(" / "), b.piso || "-"]),
+    styles: { fontSize: 8 },
+    headStyles: CORES_TABELA_PDF,
+    margin: { left: 14, right: 14, bottom: 16 },
+  });
+  rodapePdf(doc);
+  doc.save("brigada-boxer-integrantes.pdf");
 }

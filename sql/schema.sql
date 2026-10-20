@@ -179,3 +179,17 @@ drop policy if exists "public_delete_fotos_documentos" on storage.objects;
 create policy "public_delete_fotos_documentos"
 on storage.objects for delete
 using (bucket_id in ('fotos','documentos'));
+
+-- =========================================================================
+-- ATUALIZAÇÃO 2026-10: colaboradores, documentos e reuniões (já aplicada)
+-- =========================================================================
+-- brigadistas passa a guardar todos os colaboradores:
+--   novas colunas vinculo, departamento, e_brigadista (bool); piso = Localização;
+--   cargo/funcao/area/piso opcionais; cargo+funcao obrigatórios se e_brigadista;
+--   nome único (upper(btrim(nome))). Ninguém é excluído: usa-se ativo = false.
+-- documentos: tipo ('Certificado de Formação','Atestado da Brigada','Outro'),
+--   brigadista_id (opcional), titulo, data_emissao, data_validade, arquivo_url.
+-- atas.tipo: 'Geral' | 'Lideres'.
+-- acoes: origem ('Manual','Reunião Geral','Reunião de Líderes'),
+--   encaminhamento ('Líderes','Pauta Geral','Ação Geral') para itens dos líderes,
+--   ata_geral_id = Reunião Geral que recebeu o item. Pautas dispensam responsável/prazo.

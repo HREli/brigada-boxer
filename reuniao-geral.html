@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brigada Boxer — Reunião Geral</title>
+<link rel="icon" type="image/svg+xml" href="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/favicon-boxer.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-tipo="Geral">
+<header class="topbar">
+  <a href="index.html" class="logo-link"><img src="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/logo-boxer-branca.png" alt="Boxer Soldas" class="logo-boxer" /></a>
+  <div class="topbar-titulo">
+    <h1>BRIGADA DE INCÊNDIO</h1>
+    <p class="subtitle">Reunião Geral da Brigada</p>
+  </div>
+  <a href="index.html" class="back-link">← Menu Principal</a>
+</header>
+
+<div class="container">
+  <div id="config-warning" class="config-warning" style="display:none;"></div>
+
+  <div class="fluxo-reunioes">
+    <a href="reuniao-lideres.html" class="fluxo-etapa">1 · Reunião de Líderes</a>
+    <span class="fluxo-seta">→</span>
+    <span class="fluxo-etapa atual">2 · Reunião Geral</span>
+    <span class="fluxo-seta">→</span>
+    <a href="plano-acao.html" class="fluxo-etapa">3 · Plano de Ação</a>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="nova">➕ Nova Reunião Geral</button>
+    <button class="tab-btn" data-tab="historico">🗂️ Histórico</button>
+  </div>
+
+  <section id="tab-nova" class="tab-content">
+    <div class="panel" id="painel-vindos-lideres">
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">Trazido da Reunião de Líderes</h3>
+        <button type="button" id="btn-inserir-pautas" class="btn btn-outline">⤵️ Inserir pautas no conteúdo</button>
+      </div>
+      <p class="text-muted small" style="margin-top:-8px;">Itens que os líderes encaminharam para esta reunião. Os marcados serão vinculados a esta ATA ao salvar. Uma pauta pode virar ação com o botão ➕.</p>
+      <div id="vindos-lideres-lista"></div>
+      <div id="vindos-lideres-empty" class="empty-state small" style="padding:18px;">Nenhum item pendente da Reunião de Líderes.</div>
+    </div>
+
+    <div class="panel">
+      <h3>Registro da Reunião</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label>Data da Reunião *</label>
+          <input type="date" id="ata-data" required />
+        </div>
+      </div>
+      <div class="field field-full mt-16">
+        <label>Conteúdo da Reunião (pautas, discussões, decisões) *</label>
+        <textarea id="ata-conteudo" style="min-height:180px;" placeholder="Descreva tudo o que foi tratado na reunião..."></textarea>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">Ações Geradas na Reunião</h3>
+        <button type="button" id="btn-add-acao" class="btn btn-secondary">+ Adicionar Ação</button>
+      </div>
+      <div id="acoes-container"></div>
+      <div id="acoes-empty" class="empty-state small" style="padding:20px;">Nenhuma ação adicionada ainda (opcional).</div>
+    </div>
+
+    <div class="row">
+      <button id="btn-salvar-ata" class="btn btn-primary">💾 Salvar ATA</button>
+    </div>
+  </section>
+
+  <section id="tab-historico" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Histórico de Reuniões Gerais</h3>
+      <div id="historico-lista"></div>
+      <div id="historico-empty" class="empty-state" style="display:none;">Nenhuma reunião registrada ainda.</div>
+    </div>
+  </section>
+</div>
+
+<template id="tpl-acao-row">
+  <div class="acao-row row mb-16">
+    <div class="field" style="flex:2; min-width:220px;">
+      <label>Descrição</label>
+      <input type="text" class="acao-descricao" placeholder="O que precisa ser feito?" />
+    </div>
+    <div class="field" style="flex:1; min-width:160px;">
+      <label>Responsável</label>
+      <input type="text" class="acao-responsavel" list="lista-brigadistas" placeholder="Nome do responsável" />
+    </div>
+    <div class="field" style="flex:1; min-width:150px;">
+      <label>Prazo</label>
+      <input type="date" class="acao-prazo" />
+    </div>
+    <div class="field campo-encaminhamento" style="flex:1; min-width:200px; display:none;">
+      <label>Encaminhamento</label>
+      <select class="acao-encaminhamento">
+        <option value="Líderes">Fica com os líderes</option>
+        <option value="Pauta Geral">Levar como pauta da Reunião Geral</option>
+        <option value="Ação Geral">Virar ação da Reunião Geral</option>
+      </select>
+    </div>
+    <button type="button" class="btn btn-secondary btn-remove-acao" style="margin-top:22px;">✕</button>
+  </div>
+</template>
+
+<datalist id="lista-brigadistas"></datalist>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="js/supabaseClient.js"></script>
+<script src="js/reunioes.js"></script>
+</body>
+</html>

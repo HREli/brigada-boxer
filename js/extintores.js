@@ -36,10 +36,11 @@ function setupTabsExt() {
 async function carregarBrigadistasExt() {
   if (!CONFIGURADO) return;
   try {
-    const { data, error } = await supabaseClient.from("brigadistas").select("*").eq("ativo", true).order("nome");
+    // Todos para mostrar nomes no histórico; só brigadistas ativos nas listas de seleção
+    const { data, error } = await supabaseClient.from("brigadistas").select("id,nome,ativo,e_brigadista").order("nome");
     if (error) throw error;
     brigadistasCacheExt = data || [];
-    const opts = brigadistasCacheExt.map((b) => `<option value="${b.id}">${escapeHtmlExt(b.nome)}</option>`).join("");
+    const opts = brigadistasCacheExt.filter((b) => b.ativo && b.e_brigadista).map((b) => `<option value="${b.id}">${escapeHtmlExt(b.nome)}</option>`).join("");
     document.getElementById("insp-brigadista1").innerHTML = '<option value="">Selecione...</option>' + opts;
     document.getElementById("insp-brigadista2").innerHTML = '<option value="">Selecione...</option>' + opts;
   } catch (err) {
@@ -438,7 +439,7 @@ async function excluirInspecaoExt(id) {
   }
 }
 
-function gerarPdfInspecaoExt(inspecaoId, inspecoes) {
+async function gerarPdfInspecaoExt(inspecaoId, inspecoes) {
   const insp = inspecoes.find((i) => i.id === inspecaoId);
   if (!insp) return;
   const ex = extintoresCache.find((e) => e.id === insp.extintor_id);
@@ -447,14 +448,9 @@ function gerarPdfInspecaoExt(inspecaoId, inspecoes) {
   const doc = new jsPDF();
   const marginX = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
-  const corTabela = [31, 78, 121];
-  let y = 20;
-
-  doc.setTextColor(225, 29, 46);
-  doc.setFontSize(15);
-  doc.setFont("helvetica", "bold");
-  doc.text("BRIGADA BOXER - Inspeção Mensal de Extintor", pageWidth / 2, y, { align: "center" });
-  y += 9;
+  const corTabela = COR_ESCURA;
+  let y = await cabecalhoPdf(doc, "Inspeção Mensal de Extintor");
+  y -= 4;
 
   doc.setTextColor(30, 30, 30);
   doc.setFontSize(10);
@@ -500,6 +496,7 @@ function gerarPdfInspecaoExt(inspecaoId, inspecoes) {
     margin: { left: marginX, right: marginX },
   });
 
+  rodapePdf(doc);
   doc.save(`inspecao-extintor-${ex ? ex.identificador : "item"}-${insp.data_inspecao}.pdf`);
 }
 

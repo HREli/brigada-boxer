@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brigada Boxer — Documentos</title>
+<link rel="icon" type="image/svg+xml" href="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/favicon-boxer.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo-link"><img src="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/logo-boxer-branca.png" alt="Boxer Soldas" class="logo-boxer" /></a>
+  <div class="topbar-titulo">
+    <h1>BRIGADA DE INCÊNDIO</h1>
+    <p class="subtitle">Certificados e Atestado</p>
+  </div>
+  <a href="index.html" class="back-link">← Menu Principal</a>
+</header>
+
+<div class="container">
+  <div id="config-warning" class="config-warning" style="display:none;"></div>
+
+  <div class="indicators">
+    <div class="indicator-card total"><div class="value" id="ind-docs">0</div><div class="label">Documentos arquivados</div></div>
+    <div class="indicator-card concluida"><div class="value" id="ind-atestado">-</div><div class="label">Atestado da Brigada</div></div>
+    <div class="indicator-card andamento"><div class="value" id="ind-vencendo">0</div><div class="label">Vencem em 60 dias</div></div>
+    <div class="indicator-card atrasada"><div class="value" id="ind-sem-cert">0</div><div class="label">Brigadistas sem certificado válido</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="arquivo">🗂️ Arquivo</button>
+    <button class="tab-btn" data-tab="novo">➕ Arquivar documento</button>
+    <button class="tab-btn" data-tab="situacao">🎓 Situação dos brigadistas</button>
+  </div>
+
+  <section id="tab-arquivo" class="tab-content">
+    <div class="panel">
+      <div class="row mb-16">
+        <div class="field" style="min-width:200px;">
+          <label>Tipo</label>
+          <select id="filtro-tipo">
+            <option value="">Todos</option>
+            <option>Atestado da Brigada</option>
+            <option>Certificado de Formação</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label>Validade</label>
+          <select id="filtro-validade">
+            <option value="">Todas</option>
+            <option value="vigente">Vigentes</option>
+            <option value="vencendo">Vencendo (60 dias)</option>
+            <option value="vencido">Vencidos</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1; min-width:200px;">
+          <label>Buscar</label>
+          <input type="text" id="filtro-busca" placeholder="Título ou brigadista..." />
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Documento</th><th>Brigadista</th><th>Emissão</th><th>Validade</th><th>Situação</th><th></th></tr></thead>
+          <tbody id="tabela-docs"></tbody>
+        </table>
+      </div>
+      <div id="docs-empty" class="empty-state" style="display:none;">Nenhum documento encontrado.</div>
+    </div>
+  </section>
+
+  <section id="tab-novo" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Arquivar documento</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label>Tipo *</label>
+          <select id="doc-tipo">
+            <option>Certificado de Formação</option>
+            <option>Atestado da Brigada</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="field" id="campo-brigadista-wrap">
+          <label>Brigadista</label>
+          <select id="doc-brigadista"><option value="">Certificado da turma (todos)</option></select>
+        </div>
+        <div class="field field-full">
+          <label>Título *</label>
+          <input type="text" id="doc-titulo" placeholder="Ex.: Formação de Brigada 2026 - Turma A" />
+        </div>
+        <div class="field">
+          <label>Data de emissão</label>
+          <input type="date" id="doc-emissao" />
+        </div>
+        <div class="field">
+          <label>Válido até</label>
+          <input type="date" id="doc-validade" />
+          <div class="small text-muted" style="margin-top:4px;">Preenchido com +1 ano da emissão (pode alterar).</div>
+        </div>
+        <div class="field field-full">
+          <label>Arquivo (PDF ou imagem) *</label>
+          <input type="file" id="doc-arquivo" accept="application/pdf,image/*" />
+        </div>
+        <div class="field field-full">
+          <label>Observações</label>
+          <textarea id="doc-obs" style="min-height:70px;" placeholder="Empresa que ministrou, carga horária, nº do atestado..."></textarea>
+        </div>
+      </div>
+      <div class="row mt-16">
+        <button id="btn-salvar-doc" class="btn btn-primary">💾 Arquivar</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-situacao" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Certificado de formação por brigadista</h3>
+      <p class="text-muted small">Considera o certificado individual mais recente de cada brigadista ativo. Se houver certificado da turma vigente, ele aparece como referência.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Brigadista</th><th>Cargo</th><th>Certificado</th><th>Validade</th><th>Situação</th></tr></thead>
+          <tbody id="tabela-situacao"></tbody>
+        </table>
+      </div>
+      <div id="situacao-empty" class="empty-state" style="display:none;">Nenhum brigadista ativo.</div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/supabaseClient.js"></script>
+<script src="js/documentos.js"></script>
+</body>
+</html>

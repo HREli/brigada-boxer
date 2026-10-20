@@ -2,97 +2,10 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Brigada Boxer — ATA</title>
-<link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css" />
+<meta http-equiv="refresh" content="0; url=reuniao-geral.html" />
+<title>Brigada Boxer — Reunião Geral</title>
 </head>
 <body>
-<header class="topbar">
-  <img src="assets/logo.svg" alt="Boxer" class="logo-badge" />
-  <div>
-    <h1>BRIGADA BOXER</h1>
-    <p class="subtitle">Gestão de ATA</p>
-  </div>
-  <a href="index.html" class="back-link">← Menu Principal</a>
-</header>
-
-<div class="container">
-  <div id="config-warning" class="config-warning" style="display:none;"></div>
-
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="nova">➕ Nova ATA</button>
-    <button class="tab-btn" data-tab="historico">🗂️ Histórico de ATAs</button>
-  </div>
-
-  <!-- ABA NOVA ATA -->
-  <section id="tab-nova" class="tab-content">
-    <div class="panel">
-      <h3>Registrar ATA da Reunião</h3>
-      <div class="form-grid">
-        <div class="field">
-          <label>Data da Reunião *</label>
-          <input type="date" id="ata-data" required />
-        </div>
-      </div>
-      <div class="field field-full mt-16">
-        <label>Conteúdo da Reunião (acontecimentos, discussões, decisões) *</label>
-        <textarea id="ata-conteudo" style="min-height:180px;" placeholder="Descreva tudo o que foi tratado na reunião..."></textarea>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Ações Geradas na Reunião</h3>
-        <button type="button" id="btn-add-acao" class="btn btn-secondary">+ Adicionar Ação</button>
-      </div>
-      <div id="acoes-container"></div>
-      <div id="acoes-empty" class="empty-state small" style="padding:20px;">Nenhuma ação adicionada ainda (opcional).</div>
-    </div>
-
-    <div class="row">
-      <button id="btn-salvar-ata" class="btn btn-primary">💾 Salvar ATA</button>
-    </div>
-  </section>
-
-  <!-- ABA HISTÓRICO -->
-  <section id="tab-historico" class="tab-content" style="display:none;">
-    <div class="panel">
-      <h3>Histórico de ATAs</h3>
-      <div id="historico-lista"></div>
-      <div id="historico-empty" class="empty-state" style="display:none;">Nenhuma ATA registrada ainda.</div>
-    </div>
-  </section>
-</div>
-
-<!-- Template de linha de ação (usado via JS) -->
-<template id="tpl-acao-row">
-  <div class="acao-row row mb-16" style="align-items:flex-start; border:1px solid var(--border); border-radius:10px; padding:14px; background:#fafafa;">
-    <div class="field" style="flex:2; min-width:220px;">
-      <label>Descrição da Ação</label>
-      <input type="text" class="acao-descricao" placeholder="O que precisa ser feito?" />
-    </div>
-    <div class="field" style="flex:1; min-width:160px;">
-      <label>Responsável</label>
-      <input type="text" class="acao-responsavel" list="lista-brigadistas" placeholder="Nome do responsável" />
-    </div>
-    <div class="field" style="flex:1; min-width:150px;">
-      <label>Prazo</label>
-      <input type="date" class="acao-prazo" />
-    </div>
-    <button type="button" class="btn btn-secondary btn-remove-acao" style="margin-top:22px;">✕</button>
-  </div>
-</template>
-
-<datalist id="lista-brigadistas"></datalist>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="js/supabaseClient.js"></script>
-<script src="js/ata.js"></script>
+<p>A Gestão de ATA agora é a <a href="reuniao-geral.html">Reunião Geral da Brigada</a>.</p>
 </body>
 </html>

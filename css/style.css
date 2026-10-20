@@ -1,7 +1,9 @@
 :root {
-  --brand-red: #e11d2e;
-  --brand-red-2: #ff4d5e;
-  --brand-red-dark: #8c0e17;
+  --brand-red: #d60808;
+  --brand-red-2: #f0302b;
+  --brand-red-dark: #8f0505;
+  --grafite: #272626;
+  --grafite-2: #3f3f3f;
 
   --navy: #16324f;
   --navy-2: #1f4e79;
@@ -33,7 +35,7 @@
 
 body {
   margin: 0;
-  font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: 'Sora', 'Segoe UI', Roboto, Arial, sans-serif;
   color: var(--text);
   padding-bottom: 40px;
   background:
@@ -47,7 +49,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ---- Topbar ---- */
 .topbar {
-  background: linear-gradient(120deg, #12283f 0%, #1f4e79 100%);
+  background: linear-gradient(120deg, var(--grafite) 0%, #1b1a1a 100%);
   color: var(--text-on-navy);
   padding: 16px 28px;
   display: flex;
@@ -194,9 +196,9 @@ a { color: inherit; text-decoration: none; }
 .btn-primary {
   background: linear-gradient(135deg, var(--brand-red-2), var(--brand-red));
   color: #fff;
-  box-shadow: 0 6px 18px rgba(225, 29, 46, 0.3);
+  box-shadow: 0 6px 18px rgba(214, 8, 8, 0.28);
 }
-.btn-primary:hover { box-shadow: 0 8px 22px rgba(225, 29, 46, 0.42); }
+.btn-primary:hover { box-shadow: 0 8px 22px rgba(214, 8, 8, 0.4); }
 .btn-dark {
   background: linear-gradient(135deg, var(--navy-2), var(--navy));
   color: #fff;
@@ -469,3 +471,66 @@ th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; le
   .topbar h1 { font-size: 1rem; }
   .container { padding: 20px 12px; }
 }
+
+/* =====================================================================
+   Identidade Boxer + novas telas (colaboradores, documentos, reuniões)
+   ===================================================================== */
+.topbar .logo-link { display: flex; align-items: center; }
+.topbar .logo-boxer { height: 34px; width: auto; display: block; }
+.topbar-titulo { border-left: 1px solid rgba(255,255,255,0.18); padding-left: 16px; }
+.topbar-titulo h1 { letter-spacing: 1.2px; }
+.tab-btn.active, .btn-dark, .toast { background: linear-gradient(135deg, var(--grafite-2), var(--grafite)); }
+.menu-card::before { background: linear-gradient(90deg, var(--grafite), var(--brand-red)); }
+.menu-card .icon { background: linear-gradient(145deg, #fdecec, #f6dede); }
+.menu-card h3, .hero h2, .panel h2, .panel h3 { color: var(--grafite); }
+.toast.error { background: linear-gradient(135deg, #f0424f, var(--danger)); }
+.toast.success { background: linear-gradient(135deg, #22c55e, var(--ok)); }
+
+.avatar-sm { width: 38px; height: 38px; }
+.badge-brigada { background: #fde8e8; color: var(--brand-red-dark); }
+.linha-inativa td { opacity: 0.55; }
+.btn-situacao {
+  border: none; border-radius: 999px; padding: 4px 12px; font-size: 0.75rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.btn-situacao.ativo { background: #dcfce7; color: var(--ok); }
+.btn-situacao.inativo { background: #eceef1; color: var(--text-muted); }
+.btn-situacao:hover { outline: 2px solid rgba(0,0,0,0.08); }
+.check-line { display: flex; gap: 8px; align-items: center; font-size: 0.88rem; color: var(--text); font-weight: 500; margin-top: 12px; cursor: pointer; }
+.check-line input { width: 16px; height: 16px; }
+.box-brigada { border: 1px solid #f3c9c9; background: #fff7f7; border-radius: var(--radius-sm); padding: 14px; }
+.lista-colunas { margin: 0 0 14px; padding-left: 18px; line-height: 1.7; }
+.previa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.previa-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: #fafafa; font-size: 0.88rem; }
+.previa-item b { font-size: 1.3rem; display: block; }
+.previa-item.ok b { color: var(--ok); }
+.previa-item.warn b { color: var(--warn); }
+.previa-item.danger b { color: var(--danger); }
+.modal { max-width: 640px; }
+
+.fluxo-reunioes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; font-size: 0.82rem; }
+.fluxo-etapa { padding: 7px 14px; border-radius: 999px; background: #fff; border: 1px solid var(--border); font-weight: 600; color: var(--text-muted); }
+a.fluxo-etapa:hover { border-color: var(--brand-red); color: var(--brand-red); }
+.fluxo-etapa.atual { background: var(--brand-red); color: #fff; border-color: var(--brand-red); }
+.fluxo-seta { color: var(--text-muted); }
+.acao-row { align-items: flex-start; border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: #fafafa; }
+.item-lider { display: flex; align-items: center; gap: 10px; padding: 10px 6px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.88rem; }
+.item-lider:last-child { border-bottom: none; }
+.item-lider input { width: 16px; height: 16px; flex-shrink: 0; }
+.item-lider-texto { flex: 1; }
+.ata-card { margin-bottom: 14px; }
+.ata-card h4 { margin: 16px 0 6px; font-size: 0.85rem; color: var(--grafite); }
+.ata-card summary { cursor: pointer; color: var(--text-muted); font-weight: 600; }
+.conteudo-ata { white-space: pre-wrap; background: #fafafa; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-top: 10px; font-size: 0.88rem; }
+.sel-encaminhamento { padding: 6px 8px; font-size: 0.8rem; }
+
+@media print {
+  .topbar, .tabs, .indicators, .row .btn, .back-link { display: none !important; }
+  .panel { box-shadow: none; border: none; }
+}
+@media (max-width: 640px) {
+  .topbar .logo-boxer { height: 26px; }
+  .topbar-titulo { padding-left: 10px; }
+}
+.menu-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+body { background: radial-gradient(circle at 10% -10%, rgba(214, 8, 8, 0.05), transparent 40%), #f1f2f4; background-attachment: fixed; }

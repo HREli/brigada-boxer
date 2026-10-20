@@ -3,20 +3,20 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Brigada Boxer — Brigadistas</title>
-<link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+<title>Brigada Boxer — Colaboradores e Brigadistas</title>
+<link rel="icon" type="image/svg+xml" href="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/favicon-boxer.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
 <header class="topbar">
-  <img src="assets/logo.svg" alt="Boxer" class="logo-badge" />
-  <div>
-    <h1>BRIGADA BOXER</h1>
-    <p class="subtitle">Cadastro e Gestão de Brigadistas</p>
+  <a href="index.html" class="logo-link"><img src="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/logo-boxer-branca.png" alt="Boxer Soldas" class="logo-boxer" /></a>
+  <div class="topbar-titulo">
+    <h1>BRIGADA DE INCÊNDIO</h1>
+    <p class="subtitle">Colaboradores e Brigadistas</p>
   </div>
   <a href="index.html" class="back-link">← Menu Principal</a>
 </header>
@@ -24,33 +24,182 @@
 <div class="container">
   <div id="config-warning" class="config-warning" style="display:none;"></div>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="cadastro">➕ Cadastro</button>
-    <button class="tab-btn" data-tab="quadro">🏢 Quadro Hierárquico</button>
-    <button class="tab-btn" data-tab="lista">📋 Lista de Integrantes</button>
+  <div class="indicators">
+    <div class="indicator-card total"><div class="value" id="ind-ativos">0</div><div class="label">Colaboradores ativos</div></div>
+    <div class="indicator-card concluida"><div class="value" id="ind-brigadistas">0</div><div class="label">Brigadistas ativos</div></div>
+    <div class="indicator-card"><div class="value" id="ind-inativos" style="color:var(--text-muted);">0</div><div class="label">Inativos</div></div>
+    <div class="indicator-card atrasada"><div class="value" id="ind-sem-foto">0</div><div class="label">Sem foto</div></div>
   </div>
 
-  <!-- ABA CADASTRO -->
-  <section id="tab-cadastro" class="tab-content">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="quadro">🏢 Quadro da Brigada</button>
+    <button class="tab-btn" data-tab="colaboradores">👥 Colaboradores</button>
+    <button class="tab-btn" data-tab="importar">📥 Importar Planilha</button>
+    <button class="tab-btn" data-tab="fotos">🖼️ Importar Fotos</button>
+  </div>
+
+  <!-- ABA QUADRO -->
+  <section id="tab-quadro" class="tab-content">
     <div class="panel">
-      <h3 id="form-title">Novo Brigadista</h3>
-      <form id="form-brigadista">
-        <input type="hidden" id="brigadista-id" />
-        <div class="form-grid">
-          <div class="field field-full">
-            <label>Foto</label>
-            <div class="row">
-              <img id="foto-preview" class="avatar avatar-lg" src="https://placehold.co/96x96?text=Foto" />
-              <input type="file" id="foto-input" accept="image/*" />
-            </div>
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">Organograma da Brigada</h3>
+        <div class="row">
+          <button id="btn-print-quadro" class="btn btn-outline">🖨️ Imprimir</button>
+          <button id="btn-export-pdf" class="btn btn-primary">📄 Lista em PDF</button>
+        </div>
+      </div>
+      <p class="text-muted small" style="margin-top:-6px;">Mostra só os colaboradores <b>ativos</b> marcados como brigadistas. Para incluir alguém, abra a aba Colaboradores e clique em ✏️.</p>
+      <div id="orgchart-container" class="orgchart"></div>
+    </div>
+  </section>
+
+  <!-- ABA COLABORADORES -->
+  <section id="tab-colaboradores" class="tab-content" style="display:none;">
+    <div class="panel">
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">Quadro de Colaboradores</h3>
+        <button id="btn-novo" class="btn btn-primary">+ Novo colaborador</button>
+      </div>
+      <div class="row mb-16">
+        <div class="field" style="flex:1; min-width:200px;">
+          <label>Buscar</label>
+          <input type="text" id="filtro-busca" placeholder="Nome, área ou departamento..." />
+        </div>
+        <div class="field" style="min-width:150px;">
+          <label>Situação</label>
+          <select id="filtro-situacao">
+            <option value="ativos">Ativos</option>
+            <option value="inativos">Inativos</option>
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:170px;">
+          <label>Brigada</label>
+          <select id="filtro-brigada">
+            <option value="todos">Todos</option>
+            <option value="sim">Só brigadistas</option>
+            <option value="nao">Não brigadistas</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label>Localização</label>
+          <select id="filtro-local"><option value="">Todas</option></select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Foto</th><th>Nome</th><th>Vínculo</th><th>Área / Departamento</th><th>Localização</th><th>Brigada</th><th>Situação</th><th></th></tr>
+          </thead>
+          <tbody id="tabela-colab-body"></tbody>
+        </table>
+      </div>
+      <div id="colab-empty" class="empty-state" style="display:none;">Nenhum colaborador encontrado.</div>
+      <p class="text-muted small" id="colab-contagem"></p>
+    </div>
+  </section>
+
+  <!-- ABA IMPORTAR PLANILHA -->
+  <section id="tab-importar" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Importar colaboradores por planilha</h3>
+      <p class="text-muted">Use uma planilha Excel (.xlsx) ou CSV com a primeira linha de títulos. Colunas reconhecidas:</p>
+      <ul class="text-muted small lista-colunas">
+        <li><b>Nome</b> (obrigatório) · <b>Vínculo</b> · <b>Área</b> · <b>Departamento</b> · <b>Localização</b></li>
+        <li>Opcionais: <b>Cargo na Brigada</b> (Coordenador, Líder de Área, Integrante) · <b>Função na Brigada</b> · <b>Situação</b> (Ativo/Inativo)</li>
+        <li>Quem já existe é <b>atualizado</b> (pelo nome, sem diferenciar acentos/maiúsculas). Ninguém é excluído.</li>
+      </ul>
+      <div class="row mb-16">
+        <button id="btn-modelo" class="btn btn-outline">⬇️ Baixar planilha modelo</button>
+      </div>
+      <div class="field">
+        <label>Arquivo da planilha</label>
+        <input type="file" id="input-planilha" accept=".xlsx,.xls,.csv" />
+      </div>
+      <label class="check-line">
+        <input type="checkbox" id="chk-inativar-ausentes" />
+        Marcar como <b>inativo</b> quem está ativo no sistema mas não aparece na planilha (desligados)
+      </label>
+      <div id="previa-importacao" class="mt-16"></div>
+      <div class="row mt-16">
+        <button id="btn-importar" class="btn btn-primary" disabled>📥 Importar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABA IMPORTAR FOTOS -->
+  <section id="tab-fotos" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Importar fotos em lote</h3>
+      <p class="text-muted">Selecione várias fotos de uma vez. Cada arquivo deve ter o <b>nome do colaborador</b> — completo (<code>CLAUDINEIA DE SOUZA.jpg</code>) ou só o suficiente para identificar a pessoa (<code>CLAUDINEIA.jpg</code>, <code>PEDRO PAULO.jpg</code>). Acentos, maiúsculas e "_" no nome do arquivo não atrapalham. As fotos são reduzidas automaticamente antes do envio.</p>
+      <div class="field">
+        <label>Fotos (JPG, PNG, WEBP)</label>
+        <input type="file" id="input-fotos" accept="image/*" multiple />
+      </div>
+      <label class="check-line">
+        <input type="checkbox" id="chk-substituir-fotos" checked />
+        Substituir a foto de quem já tem foto
+      </label>
+      <div id="previa-fotos" class="mt-16"></div>
+      <div class="row mt-16">
+        <button id="btn-enviar-fotos" class="btn btn-primary" disabled>🖼️ Enviar fotos</button>
+        <span id="progresso-fotos" class="text-muted small"></span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL EDITAR / NOVO -->
+<div id="modal-colab" class="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-titulo" style="margin:0;">Colaborador</h3>
+      <button class="modal-close" id="modal-fechar">✕</button>
+    </div>
+    <form id="form-colab">
+      <input type="hidden" id="colab-id" />
+      <div class="form-grid">
+        <div class="field field-full">
+          <label>Foto</label>
+          <div class="row">
+            <img id="foto-preview" class="avatar avatar-lg" src="https://placehold.co/96x96?text=Foto" />
+            <input type="file" id="foto-input" accept="image/*" />
           </div>
-          <div class="field field-full">
-            <label>Nome completo *</label>
-            <input type="text" id="campo-nome" required placeholder="Ex: João da Silva" />
-          </div>
+        </div>
+        <div class="field field-full">
+          <label>Nome completo *</label>
+          <input type="text" id="campo-nome" required />
+        </div>
+        <div class="field">
+          <label>Vínculo</label>
+          <input type="text" id="campo-vinculo" list="dl-vinculo" placeholder="CLT, PJ, Estágio..." />
+        </div>
+        <div class="field">
+          <label>Localização</label>
+          <input type="text" id="campo-local" list="dl-local" placeholder="TÉRREO, 1º ANDAR..." />
+        </div>
+        <div class="field">
+          <label>Área</label>
+          <input type="text" id="campo-area" list="dl-area" />
+        </div>
+        <div class="field">
+          <label>Departamento</label>
+          <input type="text" id="campo-depto" list="dl-depto" />
+        </div>
+        <div class="field field-full">
+          <label class="check-line" style="margin:6px 0 0;">
+            <input type="checkbox" id="campo-ativo" checked /> Colaborador <b>ativo</b>
+          </label>
+        </div>
+      </div>
+      <div class="box-brigada mt-16">
+        <label class="check-line" style="margin:0 0 10px;">
+          <input type="checkbox" id="campo-brigadista" /> <b>Faz parte da Brigada de Incêndio</b>
+        </label>
+        <div class="form-grid" id="campos-brigada">
           <div class="field">
             <label>Cargo na Brigada *</label>
-            <select id="campo-cargo" required>
+            <select id="campo-cargo">
               <option value="">Selecione...</option>
               <option>Coordenador</option>
               <option>Líder de Área</option>
@@ -58,32 +207,8 @@
             </select>
           </div>
           <div class="field">
-            <label>Área de Trabalho *</label>
-            <select id="campo-area" required>
-              <option value="">Selecione...</option>
-              <option>FINANCEIRO</option>
-              <option>COMERCIAL</option>
-              <option>MARKETING</option>
-              <option>RH</option>
-              <option>LOGÍSTICA</option>
-              <option>PÓS VENDAS</option>
-              <option>EXPEDIÇÃO E QUALIDADE</option>
-              <option>ALMOXARIFADO</option>
-              <option>ASSISTÊNCIA TÉCNICA</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Piso de Gestão *</label>
-            <select id="campo-piso" required>
-              <option value="">Selecione...</option>
-              <option>TÉRREO</option>
-              <option>1° ANDAR</option>
-              <option>2° ANDAR</option>
-            </select>
-          </div>
-          <div class="field">
             <label>Função na Brigada *</label>
-            <select id="campo-funcao" required>
+            <select id="campo-funcao">
               <option value="">Selecione...</option>
               <option>Socorrista</option>
               <option>Combatente</option>
@@ -94,50 +219,24 @@
             </select>
           </div>
         </div>
-        <div class="row mt-16">
-          <button type="submit" class="btn btn-primary">💾 Salvar Brigadista</button>
-          <button type="button" id="btn-cancelar-edicao" class="btn btn-secondary" style="display:none;">Cancelar edição</button>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <!-- ABA QUADRO HIERÁRQUICO -->
-  <section id="tab-quadro" class="tab-content" style="display:none;">
-    <div class="panel">
-      <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Organograma da Brigada</h3>
-        <button id="btn-print-quadro" class="btn btn-outline">🖨️ Imprimir</button>
       </div>
-      <div id="orgchart-container" class="orgchart"></div>
-    </div>
-  </section>
-
-  <!-- ABA LISTA -->
-  <section id="tab-lista" class="tab-content" style="display:none;">
-    <div class="panel">
-      <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Integrantes da Brigada</h3>
-        <button id="btn-export-pdf" class="btn btn-primary">📄 Exportar PDF</button>
+      <div class="row mt-16">
+        <button type="submit" class="btn btn-primary">💾 Salvar</button>
+        <button type="button" id="btn-cancelar" class="btn btn-secondary">Cancelar</button>
       </div>
-      <div class="table-wrap">
-        <table id="tabela-lista">
-          <thead>
-            <tr>
-              <th>Foto</th><th>Nome</th><th>Cargo</th><th>Área</th><th>Piso</th><th>Função</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="tabela-lista-body"></tbody>
-        </table>
-      </div>
-      <div id="lista-empty" class="empty-state" style="display:none;">Nenhum brigadista cadastrado ainda.</div>
-    </div>
-  </section>
+    </form>
+  </div>
 </div>
+
+<datalist id="dl-vinculo"></datalist>
+<datalist id="dl-local"></datalist>
+<datalist id="dl-area"></datalist>
+<datalist id="dl-depto"></datalist>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/supabaseClient.js"></script>
 <script src="js/brigadistas.js"></script>
 </body>

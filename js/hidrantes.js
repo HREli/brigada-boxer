@@ -36,10 +36,11 @@ function setupTabsHid() {
 async function carregarBrigadistasHid() {
   if (!CONFIGURADO) return;
   try {
-    const { data, error } = await supabaseClient.from("brigadistas").select("*").eq("ativo", true).order("nome");
+    // Todos para mostrar nomes no histórico; só brigadistas ativos nas listas de seleção
+    const { data, error } = await supabaseClient.from("brigadistas").select("id,nome,ativo,e_brigadista").order("nome");
     if (error) throw error;
     brigadistasCacheHid = data || [];
-    const opts = brigadistasCacheHid.map((b) => `<option value="${b.id}">${escapeHtmlHid(b.nome)}</option>`).join("");
+    const opts = brigadistasCacheHid.filter((b) => b.ativo && b.e_brigadista).map((b) => `<option value="${b.id}">${escapeHtmlHid(b.nome)}</option>`).join("");
     document.getElementById("insp-brigadista1").innerHTML = '<option value="">Selecione...</option>' + opts;
     document.getElementById("insp-brigadista2").innerHTML = '<option value="">Selecione...</option>' + opts;
   } catch (err) {
@@ -433,7 +434,7 @@ async function excluirInspecaoHid(id) {
   }
 }
 
-function gerarPdfInspecaoHid(inspecaoId, inspecoes) {
+async function gerarPdfInspecaoHid(inspecaoId, inspecoes) {
   const insp = inspecoes.find((i) => i.id === inspecaoId);
   if (!insp) return;
   const h = hidrantesCache.find((x) => x.id === insp.hidrante_id);
@@ -442,14 +443,9 @@ function gerarPdfInspecaoHid(inspecaoId, inspecoes) {
   const doc = new jsPDF();
   const marginX = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
-  const corTabela = [31, 78, 121];
-  let y = 20;
-
-  doc.setTextColor(225, 29, 46);
-  doc.setFontSize(15);
-  doc.setFont("helvetica", "bold");
-  doc.text("BRIGADA BOXER - Inspeção Mensal de Hidrante", pageWidth / 2, y, { align: "center" });
-  y += 9;
+  const corTabela = COR_ESCURA;
+  let y = await cabecalhoPdf(doc, "Inspeção Mensal de Hidrante");
+  y -= 4;
 
   doc.setTextColor(30, 30, 30);
   doc.setFontSize(10);
@@ -495,6 +491,7 @@ function gerarPdfInspecaoHid(inspecaoId, inspecoes) {
     margin: { left: marginX, right: marginX },
   });
 
+  rodapePdf(doc);
   doc.save(`inspecao-hidrante-${insp.data_inspecao}.pdf`);
 }
 
