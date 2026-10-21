@@ -5,7 +5,9 @@
 // =========================================================================
 
 const DOMINIO_ACESSO = "brigada.boxersoldas.app";
-const acesso = { editor: false, admin: false, nome: "" };
+const acesso = { editor: false, admin: false, nome: "", logado: false, nomeVisual: "" };
+// Esconde a página até saber se a pessoa já entrou (o login vem antes de tudo)
+document.documentElement.classList.add("verificando-acesso");
 
 // Elementos que continuam funcionando no modo "somente visualizar"
 const LIVRES = [
@@ -36,8 +38,16 @@ async function verificarAcesso() {
   if (!CONFIGURADO) return;
   const { data } = await supabaseClient.auth.getSession();
   if (data && data.session) {
+    acesso.logado = true;
     const { data: eu } = await supabaseClient.rpc("meu_acesso");
     if (eu && eu.length) Object.assign(acesso, { editor: true, admin: !!eu[0].admin, nome: eu[0].nome });
+    else {
+      const bid = data.session.user && data.session.user.user_metadata && data.session.user.user_metadata.brigadista_id;
+      if (bid) {
+        const { data: b } = await supabaseClient.from("brigadistas").select("nome").eq("id", bid).maybeSingle();
+        acesso.nomeVisual = (b && b.nome) || "";
+      }
+    }
   }
 }
 
@@ -49,8 +59,8 @@ function montarBotaoAcesso() {
   btn.className = "btn-acesso";
   btn.innerHTML = acesso.editor
     ? `👤 ${escHtml(acesso.nome.split(" ")[0])}${acesso.admin ? " · admin" : ""}`
-    : "🔒 Entrar (líderes)";
-  btn.title = acesso.editor ? "Você pode editar. Clique para sair ou gerenciar acessos." : "Somente visualização. Líderes: clique para entrar.";
+    : `👁️ ${escHtml((acesso.nomeVisual || "Visualização").split(" ")[0])}`;
+  btn.title = acesso.editor ? "Você pode editar. Clique para sair ou gerenciar acessos." : "Somente visualização. Clique para sair ou entrar como líder.";
   const back = top.querySelector(".back-link");
   top.insertBefore(btn, back || null);
   if (!back) btn.style.marginLeft = "auto";
@@ -58,7 +68,7 @@ function montarBotaoAcesso() {
   if (!acesso.editor) {
     const faixa = document.createElement("div");
     faixa.className = "faixa-leitura";
-    faixa.innerHTML = '👁️ Modo <b>somente visualização</b>. Líderes autorizados: clique em <b>🔒 Entrar</b> para editar.';
+    faixa.innerHTML = '👁️ Modo <b>somente visualização</b>. Líderes: clique no seu nome, no topo, e em <b>Entrar como líder</b> para editar.';
     const cont = document.querySelector(".container");
     if (cont) cont.prepend(faixa);
   }
@@ -75,6 +85,7 @@ function abrirModalAcesso() {
   }
   m.style.display = "flex";
   if (acesso.editor) return telaLogado(m);
+  if (acesso.logado) return telaVisualizador(m);
   telaEntrar(m);
 }
 
@@ -149,6 +160,83 @@ function telaEntrar(m, modo = "entrar") {
   };
 }
 
+function telaVisualizador(m) {
+  m.innerHTML = `<div class="modal" style="max-width:420px;">
+    <div class="modal-header"><h3 style="margin:0;">👁️ ${escHtml(acesso.nomeVisual || "Visualização")}</h3><button class="modal-close" data-fechar>✕</button></div>
+    <p class="small text-muted" style="margin-top:0;">Você está consultando o app no modo <b>somente visualização</b>.</p>
+    <div class="row mt-16">
+      <button class="btn btn-primary" id="ac-lider">🔒 Entrar como líder</button>
+      <button class="btn btn-secondary" id="ac-sair">Sair</button>
+    </div>
+  </div>`;
+  m.querySelector("[data-fechar]").onclick = () => (m.style.display = "none");
+  m.querySelector("#ac-lider").onclick = () => telaEntrar(m);
+  m.querySelector("#ac-sair").onclick = async () => {
+    await supabaseClient.auth.signOut();
+    location.reload();
+  };
+}
+
+// Tela de entrada: aparece antes de qualquer conteúdo para quem ainda não entrou
+function mostrarPortaria() {
+  const p = document.createElement("div");
+  p.id = "portaria";
+  p.innerHTML = `<div class="portaria-caixa">
+    <img src="${typeof LOGO_PRETA_URL !== "undefined" ? LOGO_PRETA_URL : ""}" alt="Boxer Soldas" class="portaria-logo" />
+    <div class="portaria-tag">Brigada de Incêndio</div>
+    <h2>Entrar no app</h2>
+    <p class="small text-muted">Brigadista: entre com o seu CPF e a sua data de nascimento.</p>
+    <div class="field"><label>CPF</label><input type="text" id="pt-cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="username" /></div>
+    <div class="field mt-16"><label>Data de nascimento</label><input type="date" id="pt-nasc" /></div>
+    <button class="btn btn-primary mt-16" id="pt-ok" style="width:100%;justify-content:center;">Entrar</button>
+    <div id="pt-erro" class="small" style="color:var(--danger);margin-top:10px;"></div>
+    <div class="portaria-lider"><a href="#" id="pt-lider">🔒 Sou líder: entrar com senha para editar</a></div>
+  </div>`;
+  document.body.appendChild(p);
+  document.documentElement.classList.remove("verificando-acesso");
+  document.documentElement.classList.add("na-portaria");
+  const cpf = p.querySelector("#pt-cpf");
+  cpf.addEventListener("input", () => {
+    const d = cpfDigitos(cpf.value).slice(0, 11);
+    cpf.value = d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  });
+  p.querySelectorAll("input").forEach((i) => i.addEventListener("keydown", (e) => e.key === "Enter" && p.querySelector("#pt-ok").click()));
+  p.querySelector("#pt-lider").onclick = (e) => {
+    e.preventDefault();
+    abrirModalAcesso();
+  };
+  p.querySelector("#pt-ok").onclick = async () => {
+    const erro = p.querySelector("#pt-erro");
+    const btn = p.querySelector("#pt-ok");
+    erro.textContent = "";
+    const d = cpfDigitos(cpf.value);
+    const nascimento = p.querySelector("#pt-nasc").value;
+    if (d.length !== 11) return (erro.textContent = "Informe o CPF completo.");
+    if (!nascimento) return (erro.textContent = "Informe a data de nascimento.");
+    btn.disabled = true;
+    btn.textContent = "Entrando...";
+    try {
+      const { data, error } = await supabaseClient.functions.invoke("acesso", { body: { acao: "entrar_brigadista", cpf: d, nascimento } });
+      if (error) {
+        let msg = error.message;
+        try {
+          msg = (await error.context.json()).erro || msg;
+        } catch (e) {}
+        throw new Error(msg);
+      }
+      if (!data || data.erro) throw new Error((data && data.erro) || "Não foi possível entrar.");
+      const r = await supabaseClient.auth.signInWithPassword({ email: data.email, password: data.senha });
+      if (r.error) throw new Error("Não foi possível entrar. Tente de novo.");
+      location.reload();
+    } catch (e) {
+      erro.textContent = e.message;
+      btn.disabled = false;
+      btn.textContent = "Entrar";
+    }
+  };
+  cpf.focus();
+}
+
 async function telaLogado(m) {
   m.innerHTML = `<div class="modal" style="max-width:520px;">
     <div class="modal-header"><h3 style="margin:0;">👤 ${escHtml(acesso.nome)}</h3><button class="modal-close" data-fechar>✕</button></div>
@@ -196,6 +284,9 @@ const acessoPronto = (async () => {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await acessoPronto;
+  // Login antes de tudo: quem não entrou vê só a tela de entrada
+  if (CONFIGURADO && !acesso.logado) return mostrarPortaria();
+  document.documentElement.classList.remove("verificando-acesso");
   // espera as telas montarem (os scripts de cada página rodam depois deste)
   await new Promise((r) => setTimeout(r, 0));
   document.body.classList.toggle("leitura", !acesso.editor);

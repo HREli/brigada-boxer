@@ -845,3 +845,19 @@ input[type=password]:focus { outline: none; border-color: var(--navy-2); box-sha
 .nivel-btn.nivel-avanc.ativo { background: var(--brand-red); border-color: var(--brand-red); }
 tr.grupo-linha td { background: #f7f7f8; font-weight: 800; font-size: .78rem; text-transform: uppercase; letter-spacing: .5px; color: var(--brand-red-dark); padding: 9px 10px; }
 tr.grupo-linha td span { display: inline-block; margin-left: 6px; background: #fde8e8; color: var(--brand-red-dark); border-radius: 999px; padding: 1px 8px; font-size: .72rem; }
+
+/* ---------- Tela de entrada (login antes de tudo) ---------- */
+html.verificando-acesso .topbar, html.verificando-acesso .container { visibility: hidden; }
+html.na-portaria .topbar, html.na-portaria .container { display: none !important; }
+#portaria { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: linear-gradient(160deg, #272626 0%, #272626 55%, #3a1414 100%); overflow-y: auto; }
+#portaria::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: 6px; background: var(--brand-red); }
+.portaria-caixa { width: 100%; max-width: 380px; background: #fff; border-radius: 16px; padding: 28px 26px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.portaria-logo { height: 40px; display: block; margin: 0 auto; }
+.portaria-tag { text-align: center; font-size: .72rem; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--brand-red); margin: 10px 0 14px; }
+.portaria-caixa h2 { margin: 0 0 4px; font-size: 1.35rem; color: #272626; }
+.portaria-caixa input[type=date] { width: 100%; }
+.portaria-lider { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); text-align: center; font-size: .85rem; }
+.portaria-lider a { color: var(--grafite, #272626); font-weight: 600; text-decoration: none; }
+.portaria-lider a:hover { color: var(--brand-red); }
+#modal-acesso { z-index: 1000; }

@@ -36,6 +36,9 @@ function mostrarAvisoConfiguracao() {
 }
 
 function showToast(message, type = "") {
+  // Na tela de entrada (antes do login) não mostra avisos das telas por trás
+  const cl = document.documentElement.classList;
+  if (cl.contains("na-portaria") || (cl.contains("verificando-acesso") && type === "error")) return;
   const existing = document.querySelector(".toast");
   if (existing) existing.remove();
   const toast = document.createElement("div");
