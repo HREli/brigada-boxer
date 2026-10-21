@@ -14,7 +14,7 @@ const LIVRES = [
   "button[id*=pdf]", "button[id*=export]", "#btn-print-quadro", ".btn-gerar-pdf", "#btn-modelo",
   "#btn-acesso", "#modal-acesso *", ".btn-situacao",
 ].join(",");
-const ABAS_EDICAO = ["nova", "novo", "importar", "fotos"];
+const ABAS_EDICAO = ["nova", "novo", "importar", "fotos", "lote"];
 
 function aplicarLeitura(raiz = document) {
   if (acesso.editor) return;

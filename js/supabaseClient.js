@@ -15,6 +15,8 @@ if (CONFIGURADO) {
 // Buckets de Storage (públicos)
 const BUCKET_FOTOS = "fotos";
 const BUCKET_DOCUMENTOS = "documentos";
+// Bucket privado (certificados têm CPF): só líderes conectados abrem, por link temporário
+const BUCKET_PRIVADO = "certificados";
 
 // Identidade visual Boxer (logo copiado do site boxersoldas.com.br)
 const LOGO_PRETA_URL = SUPABASE_URL + "/storage/v1/object/public/fotos/marca/logo-boxer-preta.png";
@@ -56,6 +58,39 @@ async function uploadArquivo(bucket, file, pastaPrefixo = "") {
   const { data } = supabaseClient.storage.from(bucket).getPublicUrl(nomeArquivo);
   return data.publicUrl;
 }
+
+// Envia para o bucket privado e devolve a referência "privado:<bucket>/<caminho>"
+async function uploadPrivado(file, pastaPrefixo = "") {
+  if (!CONFIGURADO) throw new Error("Supabase não configurado.");
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+  const caminho = `${pastaPrefixo}${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabaseClient.storage.from(BUCKET_PRIVADO).upload(caminho, file, { cacheControl: "3600", upsert: false, contentType: file.type || undefined });
+  if (error) throw error;
+  return `privado:${BUCKET_PRIVADO}/${caminho}`;
+}
+const ehPrivado = (url) => String(url || "").startsWith("privado:");
+
+// Abre um arquivo; os privados exigem login de líder e geram um link válido por 5 minutos
+async function abrirArquivo(url) {
+  if (!ehPrivado(url)) return window.open(url, "_blank");
+  const janela = window.open("", "_blank");
+  const ref = url.slice("privado:".length);
+  const bucket = ref.split("/")[0];
+  const caminho = ref.slice(bucket.length + 1);
+  const { data, error } = await supabaseClient.storage.from(bucket).createSignedUrl(caminho, 300);
+  if (error || !data) {
+    if (janela) janela.close();
+    return showToast("Este arquivo tem dados pessoais. Entre como líder (🔒 Entrar) para abrir.", "error");
+  }
+  if (janela) janela.location = data.signedUrl;
+  else window.location = data.signedUrl;
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest("a[data-arquivo]");
+  if (!a) return;
+  e.preventDefault();
+  abrirArquivo(a.dataset.arquivo);
+});
 
 // ---------------- Utilitários comuns ----------------
 

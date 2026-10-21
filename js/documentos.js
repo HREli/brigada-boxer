@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-salvar-doc").addEventListener("click", salvarDocumento);
   document.getElementById("doc-titulo").addEventListener("input", (e) => (e.target.dataset.auto = "0"));
   ajustarFormulario();
+  iniciarImportacaoLote();
   carregar();
 });
 
@@ -55,7 +56,7 @@ async function carregar() {
   try {
     const [d, b] = await Promise.all([
       supabaseClient.from("documentos").select("*").order("data_emissao", { ascending: false, nullsFirst: false }),
-      supabaseClient.from("brigadistas").select("id,nome,cargo,funcao,ativo,e_brigadista").order("nome"),
+      supabaseClient.from("brigadistas").select("id,nome,cargo,funcao,ativo,e_brigadista,classificacao,carga_horaria").order("nome"),
     ]);
     if (d.error) throw d.error;
     if (b.error) throw b.error;
@@ -132,7 +133,7 @@ function renderArquivo() {
       <td>${formatarDataBR(d.data_validade)}</td>
       <td>${situacaoValidade(d.data_validade).html}</td>
       <td class="row" style="flex-wrap:nowrap;">
-        <a class="btn btn-secondary" href="${escHtml(d.arquivo_url)}" target="_blank" title="Abrir">👁️</a>
+        <a class="btn btn-secondary" href="#" data-arquivo="${escHtml(d.arquivo_url)}" title="${ehPrivado(d.arquivo_url) ? "Abrir (só líderes — contém dados pessoais)" : "Abrir"}">${ehPrivado(d.arquivo_url) ? "🔒👁️" : "👁️"}</a>
         <button class="btn btn-secondary btn-excluir-doc" data-id="${d.id}" title="Excluir">🗑️</button>
       </td>
     </tr>`
@@ -169,7 +170,7 @@ function renderSituacao() {
       return `<tr>
         <td><b>${escHtml(b.nome)}</b></td>
         <td>${escHtml(b.funcao || b.cargo || "-")}</td>
-        <td>${doc ? `<a href="${escHtml(doc.arquivo_url)}" target="_blank">${escHtml(doc.titulo)}</a>` : turmaVigente ? `<a href="${escHtml(turmaVigente.arquivo_url)}" target="_blank">${escHtml(turmaVigente.titulo)} (turma)</a>` : "-"}</td>
+        <td>${doc ? `<a href="#" data-arquivo="${escHtml(doc.arquivo_url)}">${escHtml(doc.titulo)}</a>` : turmaVigente ? `<a href="#" data-arquivo="${escHtml(turmaVigente.arquivo_url)}">${escHtml(turmaVigente.titulo)} (turma)</a>` : "-"}</td>
         <td>${formatarDataBR(doc ? doc.data_validade : turmaVigente ? turmaVigente.data_validade : null)}</td>
         <td>${situacao}</td>
       </tr>`;
@@ -192,7 +193,8 @@ async function salvarDocumento() {
   btn.textContent = "Enviando...";
   try {
     const pasta = tipo === "Atestado da Brigada" ? "atestados/" : tipo === "Certificado de Formação" ? "certificados/" : "outros/";
-    const arquivo_url = await uploadArquivo(BUCKET_DOCUMENTOS, file, pasta);
+    // certificados têm CPF: vão para o bucket privado
+    const arquivo_url = tipo === "Certificado de Formação" ? await uploadPrivado(file, pasta) : await uploadArquivo(BUCKET_DOCUMENTOS, file, pasta);
     const { error } = await supabaseClient.from("documentos").insert({
       tipo,
       titulo,
@@ -225,4 +227,161 @@ async function excluirDocumento(id) {
   if (error) return showToast("Erro ao excluir: " + error.message, "error");
   showToast("Documento excluído.", "success");
   carregar();
+}
+
+
+// =========================================================================
+// Importação de certificados em lote: o nome do arquivo indica o brigadista
+// =========================================================================
+let lote = []; // { file, brigadistaId, status, motivo }
+const PALAVRAS_IGNORADAS = new Set(["CERTIFICADO", "CERTIFICADOS", "BRIGADA", "DE", "DA", "DO", "DAS", "DOS", "E", "INCENDIO", "ASSINADO", "ASSINADA", "TEKWELD", "INTERMEDIARIO", "AVANCADO", "BASICO", "NIVEL", "PDF", "JPG", "JPEG", "PNG", "FORMACAO", "TURMA"]);
+
+function iniciarImportacaoLote() {
+  const input = document.getElementById("lote-arquivos");
+  if (!input) return;
+  input.addEventListener("change", () => {
+    lote = [...input.files].map((file) => ({ file, brigadistaId: casarBrigadista(file.name) }));
+    marcarDuplicados();
+    renderLote();
+  });
+  document.getElementById("lote-emissao").addEventListener("change", () => {
+    const e = document.getElementById("lote-emissao").value;
+    if (!e) return;
+    const d = new Date(e + "T00:00:00");
+    d.setFullYear(d.getFullYear() + 1);
+    document.getElementById("lote-validade").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    renderLote();
+  });
+  document.getElementById("btn-importar-lote").addEventListener("click", importarLote);
+}
+
+function tokensDe(texto) {
+  return normalizarNome(texto.replace(/\.[a-z0-9]+$/i, "").replace(/[-–()]/g, " "))
+    .split(" ")
+    .filter((t) => t && !PALAVRAS_IGNORADAS.has(t) && !/^\d+$/.test(t));
+}
+function distancia(a, b) {
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+function parecido(t, n) {
+  if (t === n) return true;
+  if (t.length === 1) return n[0] === t; // abreviação: "L." = LUZ
+  return t.length >= 4 && n.length >= 4 && distancia(t, n) <= 1; // TREVISAN x TREVIZAN, NICOLAS x NICOLLAS
+}
+function casarBrigadista(nomeArquivo) {
+  const toks = tokensDe(nomeArquivo);
+  if (toks.length < 2) return null;
+  let melhor = null, melhorPts = 0, empate = false;
+  brigadistas
+    .filter((b) => b.ativo && b.e_brigadista)
+    .forEach((b) => {
+      const nb = normalizarNome(b.nome).split(" ").filter((t) => !PALAVRAS_IGNORADAS.has(t));
+      if (!parecido(toks[0], nb[0])) return; // o primeiro nome precisa bater
+      const pts = toks.filter((t) => nb.some((n) => parecido(t, n))).length;
+      if (pts > melhorPts) (melhor = b), (melhorPts = pts), (empate = false);
+      else if (pts === melhorPts) empate = true;
+    });
+  return melhor && melhorPts >= 2 && !empate ? melhor.id : null;
+}
+// Mesma pessoa com mais de um arquivo: fica a versão "assinado"
+function marcarDuplicados() {
+  const porPessoa = {};
+  lote.forEach((l) => l.brigadistaId && (porPessoa[l.brigadistaId] = porPessoa[l.brigadistaId] || []).push(l));
+  lote.forEach((l) => (l.ignorar = false));
+  Object.values(porPessoa).forEach((arr) => {
+    if (arr.length < 2) return;
+    const assinado = arr.find((l) => /assinad/i.test(l.file.name)) || arr[0];
+    arr.forEach((l) => l !== assinado && (l.ignorar = true));
+  });
+}
+function jaArquivado(brigadistaId, emissao) {
+  return documentos.some((d) => d.tipo === "Certificado de Formação" && d.brigadista_id === brigadistaId && (!emissao || d.data_emissao === emissao));
+}
+function renderLote() {
+  const box = document.getElementById("lote-previa");
+  const btn = document.getElementById("btn-importar-lote");
+  if (!lote.length) {
+    box.innerHTML = "";
+    btn.disabled = true;
+    return;
+  }
+  const emissao = document.getElementById("lote-emissao").value;
+  const opcoes = (sel) =>
+    '<option value="">— não importar —</option>' +
+    brigadistas
+      .filter((b) => b.ativo && b.e_brigadista)
+      .map((b) => `<option value="${b.id}" ${b.id === sel ? "selected" : ""}>${escHtml(b.nome)}</option>`)
+      .join("");
+  let ok = 0;
+  const linhas = lote.map((l, i) => {
+    let st;
+    if (!l.brigadistaId) st = '<span class="badge badge-danger">Escolha o brigadista</span>';
+    else if (l.ignorar) st = '<span class="badge badge-muted">Ignorado (já há versão assinada)</span>';
+    else if (jaArquivado(l.brigadistaId, emissao)) st = '<span class="badge badge-muted">Já arquivado</span>';
+    else (st = '<span class="badge badge-ok">Pronto</span>'), ok++;
+    const b = brigadistas.find((x) => x.id === l.brigadistaId);
+    return `<tr><td class="small">${escHtml(l.file.name)}</td>
+      <td><select class="sel-lote" data-i="${i}">${opcoes(l.brigadistaId)}</select></td>
+      <td>${b && b.classificacao ? escHtml(b.classificacao) : "-"}</td><td>${st}</td></tr>`;
+  });
+  const pessoas = new Set(lote.filter((l) => l.brigadistaId).map((l) => l.brigadistaId));
+  const semArquivo = brigadistas.filter((b) => b.ativo && b.e_brigadista && !pessoas.has(b.id)).map((b) => b.nome);
+  box.innerHTML = `<p class="small"><b>${lote.length}</b> arquivo(s) · <b>${ok}</b> pronto(s) para importar.${
+    semArquivo.length ? ` Brigadistas sem arquivo nesta seleção: ${semArquivo.length}.` : ""
+  }</p>
+  <div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Brigadista</th><th>Classificação</th><th>Situação</th></tr></thead><tbody>${linhas.join("")}</tbody></table></div>`;
+  box.querySelectorAll(".sel-lote").forEach((s) =>
+    s.addEventListener("change", () => {
+      lote[+s.dataset.i].brigadistaId = s.value || null;
+      marcarDuplicados();
+      renderLote();
+    })
+  );
+  btn.disabled = !ok || !emissao;
+  btn.textContent = `📥 Importar ${ok} certificado(s)`;
+}
+
+async function importarLote() {
+  const emissao = document.getElementById("lote-emissao").value;
+  const validade = document.getElementById("lote-validade").value || null;
+  if (!emissao) return showToast("Informe a data de emissão.", "error");
+  const prontos = lote.filter((l) => l.brigadistaId && !l.ignorar && !jaArquivado(l.brigadistaId, emissao));
+  const obs = document.getElementById("lote-obs").value.trim() || null;
+  const btn = document.getElementById("btn-importar-lote");
+  btn.disabled = true;
+  let feitos = 0;
+  const falhas = [];
+  for (const l of prontos) {
+    btn.textContent = `Enviando ${feitos + 1} de ${prontos.length}...`;
+    try {
+      const b = brigadistas.find((x) => x.id === l.brigadistaId);
+      const nivel = b.classificacao ? ` — Nível ${b.classificacao}${b.carga_horaria ? ` (${b.carga_horaria}h)` : ""}` : "";
+      const arquivo_url = await uploadPrivado(l.file, "certificados/");
+      const { error } = await supabaseClient.from("documentos").insert({
+        tipo: "Certificado de Formação",
+        titulo: `Formação de Brigada de Incêndio ${emissao.slice(0, 4)}${nivel}`,
+        brigadista_id: b.id,
+        data_emissao: emissao,
+        data_validade: validade,
+        arquivo_url,
+        arquivo_nome: l.file.name,
+        observacoes: obs,
+      });
+      if (error) throw error;
+      feitos++;
+    } catch (err) {
+      console.error(err);
+      falhas.push(l.file.name);
+    }
+  }
+  showToast(`${feitos} certificado(s) importado(s).` + (falhas.length ? ` Falharam: ${falhas.length}.` : ""), falhas.length ? "error" : "success");
+  document.getElementById("lote-arquivos").value = "";
+  lote = [];
+  await carregar();
+  renderLote();
+  document.querySelector('.tab-btn[data-tab="situacao"]').click();
 }

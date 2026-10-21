@@ -33,6 +33,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="arquivo">🗂️ Arquivo</button>
     <button class="tab-btn" data-tab="novo">➕ Arquivar documento</button>
+    <button class="tab-btn" data-tab="lote">📥 Importar em lote</button>
     <button class="tab-btn" data-tab="situacao">🎓 Situação dos brigadistas</button>
   </div>
 
@@ -116,6 +117,36 @@
     </div>
   </section>
 
+  <section id="tab-lote" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Importar certificados em lote</h3>
+      <p class="text-muted">Selecione de uma vez todos os certificados de uma pasta (ex.: todos do nível Avançado). O app reconhece o brigadista pelo <b>nome do arquivo</b>; se a mesma pessoa tiver mais de um arquivo, fica a versão <b>assinada</b>. Confira a lista antes de importar.</p>
+      <p class="small text-muted">🔒 Os certificados têm CPF, por isso ficam guardados de forma privada: só líderes conectados conseguem abri-los. Quem só visualiza vê a validade, mas não o arquivo.</p>
+      <div class="form-grid">
+        <div class="field field-full">
+          <label>Arquivos dos certificados (PDF ou imagem)</label>
+          <input type="file" id="lote-arquivos" accept="application/pdf,image/*" multiple />
+        </div>
+        <div class="field">
+          <label>Data de emissão *</label>
+          <input type="date" id="lote-emissao" />
+          <div class="small text-muted" style="margin-top:4px;">A data em que o curso terminou.</div>
+        </div>
+        <div class="field">
+          <label>Válido até</label>
+          <input type="date" id="lote-validade" />
+          <div class="small text-muted" style="margin-top:4px;">Preenchido com +1 ano da emissão (pode alterar).</div>
+        </div>
+        <div class="field field-full">
+          <label>Observações (vale para todos)</label>
+          <input type="text" id="lote-obs" placeholder="Ex.: EXXMED Medicina Ocupacional · 10 a 14/08/2026" />
+        </div>
+      </div>
+      <div id="lote-previa" class="mt-16"></div>
+      <div class="row mt-16"><button id="btn-importar-lote" class="btn btn-primary" disabled>📥 Importar</button></div>
+    </div>
+  </section>
+
   <section id="tab-situacao" class="tab-content" style="display:none;">
     <div class="panel">
       <h3>Certificado de formação por brigadista</h3>
@@ -132,8 +163,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="js/supabaseClient.js?v=2026102110"></script>
-<script src="js/acesso.js?v=4"></script>
-<script src="js/documentos.js?v=2026102110"></script>
+<script src="js/supabaseClient.js?v=2026102117"></script>
+<script src="js/acesso.js?v=5"></script>
+<script src="js/documentos.js?v=2026102117"></script>
 </body>
 </html>
