@@ -657,3 +657,37 @@ a.indicator-card.clicavel-link:hover { transform: translateY(-3px); box-shadow: 
 /* nomes de setor sem cortar */
 .setor-row summary { grid-template-columns: minmax(0, 1.6fr) minmax(50px, 1fr) 28px 32px; }
 .setor-nome { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
+
+/* ---- Dashboard do Plano de Ação ---- */
+.kpi.clicavel .label::after { content: ""; }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-bottom: 6px; }
+.dash-card { margin-bottom: 0; }
+.dash-card h3 { font-size: .95rem; margin-bottom: 14px; }
+.donut-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.donut { width: 150px; height: 150px; }
+.donut .arco { cursor: pointer; transition: stroke-width .15s; }
+.donut .arco:hover { stroke-width: 24; }
+.donut-pct { font-size: 24px; font-weight: 800; fill: var(--grafite); font-family: Sora, sans-serif; }
+.donut-lbl { font-size: 10px; fill: var(--text-muted); font-family: Sora, sans-serif; }
+.legenda { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 150px; }
+.leg-item { display: flex; align-items: center; gap: 8px; font-size: .86rem; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.leg-item:hover { background: #f6f7f9; }
+.leg-item b { margin-left: auto; font-size: 1rem; }
+.leg-cor { width: 12px; height: 12px; border-radius: 4px; }
+.prazo-resumo { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--text-muted); margin-bottom: 10px; }
+.prazo-resumo b { color: var(--grafite); font-size: 1rem; }
+.prazo-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 6px; border-top: 1px solid #f0f1f3; cursor: pointer; border-radius: 6px; }
+.prazo-item:hover { background: #fafafa; }
+.prazo-desc { font-size: .84rem; font-weight: 600; line-height: 1.3; }
+.barras { display: flex; flex-direction: column; gap: 4px; }
+.barra-linha { display: grid; grid-template-columns: minmax(90px, 1fr) 2fr 26px; gap: 10px; align-items: center; padding: 6px; border-radius: 8px; cursor: pointer; }
+.barra-linha:hover { background: #f6f7f9; }
+.barra-rotulo { font-size: .82rem; font-weight: 600; }
+.barra-trilho { display: flex; height: 12px; background: #f0f1f3; border-radius: 999px; overflow: hidden; }
+.barra-trilho i { display: block; height: 100%; }
+.barra-valor { font-weight: 800; text-align: right; }
+.painel-recolhivel summary { cursor: pointer; list-style: none; }
+.painel-recolhivel summary::-webkit-details-marker { display: none; }
+.painel-recolhivel[open] summary { margin-bottom: 14px; }
+.dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) { .dash-grid { grid-template-columns: 1fr; } }

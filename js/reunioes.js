@@ -174,7 +174,7 @@ async function carregarItensLideres() {
 function renderItensLideres() {
   const lista = document.getElementById("vindos-lideres-lista");
   document.getElementById("vindos-lideres-empty").style.display = itensLideresPendentes.length ? "none" : "block";
-  document.getElementById("btn-inserir-pautas").style.display = itensLideresPendentes.some((i) => i.encaminhamento === "Pauta Geral") ? "inline-flex" : "none";
+  document.getElementById("btn-inserir-pautas").style.display = itensLideresPendentes.length ? "inline-flex" : "none";
   lista.innerHTML = itensLideresPendentes
     .map((i) => {
       const ePauta = i.encaminhamento === "Pauta Geral";
@@ -205,10 +205,18 @@ function itensLideresSelecionados() {
 }
 
 function inserirPautasNoConteudo() {
-  const pautas = itensLideresSelecionados().filter((i) => i.encaminhamento === "Pauta Geral");
-  if (!pautas.length) return showToast("Nenhuma pauta marcada.", "error");
+  const itens = itensLideresSelecionados();
+  if (!itens.length) return showToast("Nenhum item marcado.", "error");
   const ta = document.getElementById("ata-conteudo");
-  const bloco = "PAUTAS TRAZIDAS DA REUNIÃO DE LÍDERES:\n" + pautas.map((p) => "- " + p.descricao + "\n  Discussão/decisão: ").join("\n") + "\n";
+  const bloco =
+    "PAUTA (trazida da Reunião de Líderes):\n\n" +
+    itens
+      .map(
+        (p, i) =>
+          `${i + 1}. ${p.descricao}${p.encaminhamento === "Ação Geral" && p.responsavel ? ` (responsável: ${p.responsavel}${p.prazo ? ", prazo " + formatarDataBR(p.prazo) : ""})` : ""}\n   Discussão: \n   Decisão: `
+      )
+      .join("\n\n") +
+    "\n\nOUTROS ASSUNTOS:\n- \n";
   ta.value = (ta.value ? ta.value.trimEnd() + "\n\n" : "") + bloco;
   ta.focus();
 }
