@@ -17,6 +17,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("busca-acao").addEventListener("input", renderTabelaAcoes);
   document.getElementById("filtro-origem").addEventListener("change", renderTabelaAcoes);
   document.querySelectorAll(".kpi").forEach((k) => k.addEventListener("click", () => filtrarPor(k.dataset.status)));
+  document.getElementById("chip-filtro-prazo").addEventListener("click", () => {
+    filtroPrazo = null;
+    renderPainel(acoesCache);
+    renderTabelaAcoes();
+  });
 });
 
 // ---------------- Brigadistas (autocomplete do responsável) ----------------
@@ -92,7 +97,17 @@ function renderIndicadores(lista) {
 // ---------------- Dashboard do Plano ----------------
 const CORES_STATUS = { "Em andamento": "#f59e0b", Atrasada: "#dc2626", "Concluída": "#16a34a" };
 
-function filtrarPor(status, busca = "", origem = "todas") {
+let filtroPrazo = null; // "vencidas" | "7" | "30" | "mais"
+const ROTULO_FAIXA = { vencidas: "vencidas", 7: "vencem em até 7 dias", 30: "vencem em 8 a 30 dias", mais: "vencem em mais de 30 dias" };
+
+function diasAtePlano(d) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return Math.round((new Date(d + "T00:00:00") - hoje) / 86400000);
+}
+
+function filtrarPor(status, busca = "", origem = "todas", manterPrazo = false) {
+  if (!manterPrazo) filtroPrazo = null;
   document.getElementById("filtro-status").value = status;
   document.getElementById("busca-acao").value = busca;
   document.getElementById("filtro-origem").value = origem;
@@ -158,24 +173,29 @@ function renderPainel(lista) {
     .join("");
   document.querySelectorAll("#legenda-status .leg-item, #donut-status .arco").forEach((el) => el.addEventListener("click", () => filtrarPor(el.dataset.status)));
 
-  // Próximos prazos (não concluídas)
-  const abertas = lista.filter((a) => a.status !== "Concluída" && a.prazo).sort((a, b) => a.prazo.localeCompare(b.prazo));
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const dias = (d) => Math.round((new Date(d + "T00:00:00") - hoje) / 86400000);
-  const em7 = abertas.filter((a) => dias(a.prazo) >= 0 && dias(a.prazo) <= 7).length;
+  // Prazos: só o resumo (a lista completa fica na tabela abaixo)
+  const abertas = lista.filter((a) => a.status !== "Concluída" && a.prazo);
+  const dias = (d) => diasAtePlano(d);
+  const faixas = [
+    { k: "vencidas", rotulo: "Vencidas", n: abertas.filter((a) => dias(a.prazo) < 0).length, cls: "danger" },
+    { k: "7", rotulo: "Vencem em até 7 dias", n: abertas.filter((a) => dias(a.prazo) >= 0 && dias(a.prazo) <= 7).length, cls: "warn" },
+    { k: "30", rotulo: "Vencem em 8 a 30 dias", n: abertas.filter((a) => dias(a.prazo) > 7 && dias(a.prazo) <= 30).length, cls: "info" },
+    { k: "mais", rotulo: "Mais de 30 dias", n: abertas.filter((a) => dias(a.prazo) > 30).length, cls: "muted" },
+  ];
+  const prox = abertas.map((a) => a.prazo).sort()[0];
   document.getElementById("proximos-prazos").innerHTML = abertas.length
-    ? `<div class="prazo-resumo"><span><b>${abertas.filter((a) => dias(a.prazo) < 0).length}</b> vencidas</span><span><b>${em7}</b> vencem em 7 dias</span><span><b>${abertas.length}</b> em aberto</span></div>` +
-      abertas
-        .slice(0, 6)
-        .map((a) => {
-          const d = dias(a.prazo);
-          const badge = d < 0 ? `<span class="badge badge-danger">${Math.abs(d)}d atrasada</span>` : d <= 7 ? `<span class="badge badge-warn">${d === 0 ? "hoje" : d + "d"}</span>` : `<span class="badge badge-muted">${d}d</span>`;
-          return `<div class="prazo-item" data-busca="${escapeAttr(a.descricao)}"><div><div class="prazo-desc">${escapeHtmlPlano(a.descricao)}</div><div class="small text-muted">${escapeHtmlPlano(nomeCurto(a.responsavel))} · ${formatarDataPlano(a.prazo)}</div></div>${badge}</div>`;
-        })
-        .join("")
+    ? `<div class="faixas-prazo">${faixas
+        .map((f) => `<button class="faixa ${f.cls} ${filtroPrazo === f.k ? "ativa" : ""}" data-faixa="${f.k}"><b>${f.n}</b><span>${f.rotulo}</span></button>`)
+        .join("")}</div>
+      <div class="small text-muted mt-16">Próximo vencimento: <b>${formatarDataPlano(prox)}</b> (${abertas.filter((a) => a.prazo === prox).length} ação(ões)) · clique numa faixa para ver as ações na tabela.</div>`
     : '<div class="empty-state small">Nenhuma ação em aberto. 🎉</div>';
-  document.querySelectorAll(".prazo-item").forEach((el) => el.addEventListener("click", () => filtrarPor("todas", el.dataset.busca)));
+  document.querySelectorAll(".faixa").forEach((el) =>
+    el.addEventListener("click", () => {
+      filtroPrazo = filtroPrazo === el.dataset.faixa ? null : el.dataset.faixa;
+      renderPainel(acoesCache);
+      filtrarPor("todas", "", "todas", true);
+    })
+  );
 
   // Por responsável e por origem
   const porResp = agrupar(lista, (a) => a.responsavel);
@@ -200,8 +220,21 @@ function obterListaFiltradaOrdenada() {
   const ordenarPor = document.getElementById("ordenar-por").value;
   const busca = document.getElementById("busca-acao").value.trim().toLowerCase();
   const filtroOrigem = document.getElementById("filtro-origem").value;
+  const chip = document.getElementById("chip-filtro-prazo");
+  if (chip) {
+    chip.style.display = filtroPrazo ? "inline-flex" : "none";
+    chip.innerHTML = filtroPrazo ? `Prazo: ${ROTULO_FAIXA[filtroPrazo]} <b>✕</b>` : "";
+  }
 
   let lista = [...acoesCache];
+
+  if (filtroPrazo) {
+    lista = lista.filter((a) => {
+      if (a.status === "Concluída" || !a.prazo) return false;
+      const d = diasAtePlano(a.prazo);
+      return filtroPrazo === "vencidas" ? d < 0 : filtroPrazo === "7" ? d >= 0 && d <= 7 : filtroPrazo === "30" ? d > 7 && d <= 30 : d > 30;
+    });
+  }
 
   if (filtroOrigem !== "todas") {
     lista = lista.filter((a) => a.origem === filtroOrigem);
@@ -244,8 +277,8 @@ function renderTabelaAcoes() {
   lista.forEach((a) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><input type="text" class="campo-inline" data-id="${a.id}" data-campo="descricao" value="${escapeAttr(a.descricao)}" style="border:none;background:transparent;width:100%;min-width:160px;" /></td>
-      <td><input type="text" class="campo-inline" data-id="${a.id}" data-campo="responsavel" value="${escapeAttr(a.responsavel)}" list="lista-brigadistas-plano" style="border:none;background:transparent;width:100%;min-width:120px;" /></td>
+      <td class="col-desc"><textarea class="campo-inline campo-desc" data-id="${a.id}" data-campo="descricao" rows="1">${escapeHtmlPlano(a.descricao)}</textarea></td>
+      <td class="col-resp"><textarea class="campo-inline campo-resp" data-id="${a.id}" data-campo="responsavel" rows="1" title="${escapeAttr(a.responsavel)}">${escapeHtmlPlano(a.responsavel)}</textarea></td>
       <td><input type="date" class="campo-inline" data-id="${a.id}" data-campo="prazo" value="${a.prazo || ""}" style="border:none;background:transparent;" /></td>
       <td><input type="date" class="campo-inline" data-id="${a.id}" data-campo="data_conclusao" value="${a.data_conclusao || ""}" style="border:none;background:transparent;" /></td>
       <td>${badgeStatus(a.status)}</td>
@@ -255,6 +288,21 @@ function renderTabelaAcoes() {
     tbody.appendChild(tr);
   });
 
+  // Ajusta a altura das caixas de texto ao conteúdo (nada fica cortado)
+  const autoAltura = (el) => {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  };
+  tbody.querySelectorAll("textarea.campo-inline").forEach((t) => {
+    autoAltura(t);
+    t.addEventListener("input", () => autoAltura(t));
+    t.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        t.blur();
+      }
+    });
+  });
   tbody.querySelectorAll(".campo-inline").forEach((input) => {
     input.addEventListener("change", (e) =>
       atualizarCampoAcao(e.target.dataset.id, e.target.dataset.campo, e.target.value)

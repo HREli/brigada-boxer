@@ -691,3 +691,26 @@ a.indicator-card.clicavel-link:hover { transform: translateY(-3px); box-shadow: 
 .painel-recolhivel[open] summary { margin-bottom: 14px; }
 .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 860px) { .dash-grid { grid-template-columns: 1fr; } }
+
+/* ---- Plano: faixas de prazo e tabela sem cortes ---- */
+.faixas-prazo { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.faixa { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); background: #fff; border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer; font-family: inherit; text-align: left; transition: border-color .15s, box-shadow .15s; }
+.faixa b { font-size: 1.6rem; min-width: 30px; }
+.faixa span { font-size: .8rem; color: var(--text-muted); font-weight: 600; }
+.faixa:hover { box-shadow: var(--shadow); }
+.faixa.danger b { color: var(--danger); } .faixa.warn b { color: var(--warn); } .faixa.info b { color: #0369a1; } .faixa.muted b { color: var(--text-muted); }
+.faixa.ativa { border-color: var(--brand-red); box-shadow: 0 0 0 2px rgba(214,8,8,.15); }
+.chip-filtro { margin-left: 10px; font-family: inherit; font-size: .74rem; font-weight: 600; background: #fde8e8; color: var(--brand-red-dark); border: none; border-radius: 999px; padding: 4px 12px; cursor: pointer; vertical-align: middle; gap: 6px; align-items: center; }
+td.col-desc { min-width: 260px; width: 34%; }
+td.col-resp { min-width: 170px; width: 16%; }
+textarea.campo-inline { border: 1px solid transparent; background: transparent; width: 100%; resize: none; overflow: hidden; min-height: 0; padding: 6px 8px; font-size: .86rem; line-height: 1.35; border-radius: 8px; }
+textarea.campo-inline:hover { border-color: var(--border); background: #fff; }
+textarea.campo-inline:focus { border-color: var(--grafite-2); background: #fff; box-shadow: none; }
+/* colunas compactas para a descrição caber inteira */
+#tabela-acoes-body td { padding: 8px 6px; }
+#tabela-acoes-body input[type=date].campo-inline { width: 128px; padding: 4px 2px; font-size: .8rem; }
+#tabela-acoes-body .badge { white-space: nowrap; font-size: .7rem; }
+#tabela-acoes-body td:nth-child(6) { min-width: 130px; font-size: .74rem; }
+#tabela-acoes-body td:nth-child(6) .badge { white-space: normal; }
+#tabela-acoes-body .btn-excluir-acao { padding: 6px 9px; }
+td.col-desc { width: 40%; }
