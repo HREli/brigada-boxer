@@ -8,12 +8,25 @@ const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julh
 const DIAS_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 // Início da gestão atual da brigada (meses anteriores não entram nas contas)
-const INICIO_GESTAO = "2026-10-01";
+const INICIO_GESTAO = "2026-08-10"; // Semana de Treinamento (10 a 13/08/2026)
 
-let ano = new Date().getFullYear();
+// A gestão vai de agosto a agosto (13 meses: ago/AAAA até ago/AAAA+1)
+const hojeD = new Date();
+let ano = hojeD.getMonth() >= 7 ? hojeD.getFullYear() : hojeD.getFullYear() - 1; // ano de início da gestão
+let periodo = [];
+function montarPeriodo() {
+  periodo = [];
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(ano, 7 + i, 1);
+    periodo.push({ a: d.getFullYear(), m: d.getMonth() });
+  }
+}
+const A = (k) => periodo[k].a;
+const M = (k) => periodo[k].m;
 let agenda = [];
 let atas = [];
 let presencas = [];
+let eventos = [];
 let editando = null; // { tipo, mes }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -36,7 +49,7 @@ function mudarAno(d) {
 // ---------------- Datas ----------------
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const deISO = (s) => new Date(s + "T00:00:00");
-const mesRef = (m) => `${ano}-${String(m + 1).padStart(2, "0")}-01`;
+const mesRef = (k) => `${A(k)}-${String(M(k) + 1).padStart(2, "0")}-01`;
 function terceiraQuarta(a, m) {
   const d = new Date(a, m, 1);
   const primeira = 1 + ((3 - d.getDay() + 7) % 7); // quarta = 3
@@ -51,15 +64,18 @@ const fmt = (s) => (s ? `${formatarDataBR(s)} (${DIAS_SEMANA[deISO(s).getDay()]}
 
 // ---------------- Dados ----------------
 async function carregar() {
-  document.getElementById("titulo-ano").textContent = ano;
+  montarPeriodo();
+  document.getElementById("titulo-ano").textContent = `Gestão ${ano}–${ano + 1}`;
   if (!CONFIGURADO) return;
   try {
-    const ini = `${ano - 1}-12-01`;
-    const fim = `${ano}-12-31`;
-    const [ag, at] = await Promise.all([
-      supabaseClient.from("reunioes_agenda").select("*").gte("mes", `${ano}-01-01`).lte("mes", fim),
+    const ini = `${ano}-06-01`;
+    const fim = `${ano + 1}-08-31`;
+    const [ag, at, ev] = await Promise.all([
+      supabaseClient.from("reunioes_agenda").select("*").gte("mes", `${ano}-08-01`).lte("mes", fim),
       supabaseClient.from("atas").select("id,tipo,data_reuniao,arquivo_assinado_url").gte("data_reuniao", ini).lte("data_reuniao", fim),
+      supabaseClient.from("calendario_eventos").select("*").lte("data_inicio", fim).order("data_inicio"),
     ]);
+    eventos = (ev.data || []).filter((e) => (e.data_fim || e.data_inicio) >= `${ano}-08-01`);
     if (ag.error) throw ag.error;
     if (at.error) throw at.error;
     agenda = ag.data || [];
@@ -87,7 +103,7 @@ function excecao(tipo, m) {
 // Monta a programação do mês (prevista + o que realmente aconteceu)
 function programacao(m) {
   const exG = excecao("Geral", m);
-  const padraoG = iso(terceiraQuarta(ano, m));
+  const padraoG = iso(terceiraQuarta(A(m), M(m)));
   const geral = {
     tipo: "Geral",
     prevista: exG && exG.data ? exG.data : padraoG,
@@ -110,7 +126,7 @@ function programacao(m) {
     situacaoAgenda: exL ? exL.situacao : "A combinar",
   };
   // ATA de líderes ligada a esta Geral: entre a Geral anterior e esta
-  const geralAnterior = m === 0 ? iso(terceiraQuarta(ano - 1, 11)) : programacaoSimples(m - 1);
+  const geralAnterior = m === 0 ? iso(terceiraQuarta(ano, 6)) : programacaoSimples(m - 1);
   lideres.ata =
     atas
       .filter((a) => a.tipo === "Lideres" && a.data_reuniao > geralAnterior && a.data_reuniao <= geral.prevista)
@@ -119,13 +135,14 @@ function programacao(m) {
 }
 function programacaoSimples(m) {
   const ex = excecao("Geral", m);
-  return ex && ex.data ? ex.data : iso(terceiraQuarta(ano, m));
+  return ex && ex.data ? ex.data : iso(terceiraQuarta(A(m), M(m)));
 }
 
 function statusDe(r) {
   const hoje = hojeISOLocal();
   if (r.ata) return { chave: "realizada", rotulo: "Realizada", data: r.ata.data_reuniao };
-  if (r.situacaoAgenda === "Não necessária") return { chave: "cinza", rotulo: "Não necessária", data: null };
+  if (r.situacaoAgenda === "Realizada") return { chave: "realizada", rotulo: "Realizada", data: r.prevista, foraDoSistema: true };
+  if (r.situacaoAgenda === "Não necessária") return { chave: "cinza", rotulo: r.tipo === "Geral" ? "Não houve" : "Não necessária", data: null };
   if (r.situacaoAgenda === "Cancelada") return { chave: "cinza", rotulo: "Cancelada", data: r.prevista };
   if (r.tipo === "Lideres" && !r.prevista) {
     return r.janelaFim < hoje ? { chave: "cinza", rotulo: "Não registrada", data: null } : { chave: "prevista", rotulo: "A combinar", data: null };
@@ -136,17 +153,19 @@ function statusDe(r) {
 
 // ---------------- Render ----------------
 function render() {
-  const progs = MESES.map((_, m) => programacao(m));
+  const progs = periodo.map((_, k) => programacao(k));
   renderResumo(progs);
   document.getElementById("meses").innerHTML = progs
     .map((p, m) => {
-      const atual = new Date().getFullYear() === ano && new Date().getMonth() === m;
-      if (`${mesRef(m).slice(0, 7)}` < INICIO_GESTAO.slice(0, 7) && !p.geral.ata && !p.lideres.ata) {
-        return `<section class="mes-card fora"><header class="mes-head"><h3>${MESES[m]}</h3></header><div class="reuniao-bloco small text-muted">Antes do início da gestão da brigada.</div></section>`;
+      const atual = hojeD.getFullYear() === A(m) && hojeD.getMonth() === M(m);
+      const evs = eventosDoMes(m);
+      if (`${mesRef(m).slice(0, 7)}` < INICIO_GESTAO.slice(0, 7) && !p.geral.ata && !p.lideres.ata && !evs.length) {
+        return `<section class="mes-card fora"><header class="mes-head"><h3>${MESES[M(m)]} <span class="mes-ano">${A(m)}</span></h3></header><div class="reuniao-bloco small text-muted">Antes do início da gestão da brigada.</div></section>`;
       }
       return `<section class="mes-card ${atual ? "atual" : ""}">
-        <header class="mes-head"><h3>${MESES[m]}</h3>${atual ? '<span class="badge badge-brigada">mês atual</span>' : ""}</header>
-        ${blocoReuniao(p.lideres, m)}
+        <header class="mes-head"><h3>${MESES[M(m)]} <span class="mes-ano">${A(m)}</span></h3>${atual ? '<span class="badge badge-brigada">mês atual</span>' : ""}</header>
+        ${evs.map(blocoEvento).join("")}
+        ${mesRef(m).slice(0, 7) === INICIO_GESTAO.slice(0, 7) ? "" : blocoReuniao(p.lideres, m)}
         ${blocoReuniao(p.geral, m)}
       </section>`;
     })
@@ -192,6 +211,7 @@ function blocoReuniao(r, m) {
   const remarcada = r.tipo === "Geral" && r.prevista !== r.padrao && !r.ata ? '<span class="tag-remarcada">remarcada</span>' : "";
 
   let pres = "";
+  if (!r.ata && st.foraDoSistema) pres = '<div class="small text-muted" style="margin:6px 0 0 21px;">Sem ATA/lista de presença no sistema.</div>';
   if (r.ata) {
     const ps = presencas.filter((p) => p.ata_id === r.ata.id);
     const np = ps.filter((p) => p.presente).length;
@@ -221,6 +241,27 @@ function blocoReuniao(r, m) {
   </div>`;
 }
 
+function eventosDoMes(m) {
+  const ini = mesRef(m);
+  const fim = iso(new Date(A(m), M(m) + 1, 0));
+  return eventos.filter((e) => e.data_inicio <= fim && (e.data_fim || e.data_inicio) >= ini);
+}
+const ICONE_EVENTO = { Treinamento: "🎓", Simulado: "🚨", Inspeção: "🔎", Manutenção: "🛠️", Comunicação: "📣", Outros: "📌" };
+function blocoEvento(e) {
+  const quando = e.data_fim && e.data_fim !== e.data_inicio
+    ? `${formatarDataBR(e.data_inicio).slice(0, 5)} a ${formatarDataBR(e.data_fim)}`
+    : fmt(e.data_inicio);
+  const feito = (e.data_fim || e.data_inicio) < hojeISOLocal();
+  return `<div class="reuniao-bloco evento">
+    <div class="reuniao-linha">
+      <span class="ev-icone">${ICONE_EVENTO[e.categoria] || "📌"}</span>
+      <div class="reuniao-texto"><div class="reuniao-nome">${escHtml(e.titulo)}</div><div class="reuniao-quando">${quando}</div></div>
+      <span class="badge ${feito ? "st-badge-realizada" : "st-badge-prevista"}">${feito ? "Realizado" : "Previsto"}</span>
+    </div>
+    ${e.observacao ? `<div class="reuniao-obs">${escHtml(e.observacao)}</div>` : ""}
+  </div>`;
+}
+
 function renderResumo(progs) {
   const gerais = progs.map((p) => ({ ...p.geral, st: statusDe(p.geral) })).filter((g) => g.prevista >= INICIO_GESTAO || g.ata);
   const realizadas = gerais.filter((g) => g.st.chave === "realizada");
@@ -228,7 +269,7 @@ function renderResumo(progs) {
   const lid = progs.map((p) => statusDe(p.lideres)).filter((s, i) => s.chave === "realizada" && (progs[i].geral.prevista >= INICIO_GESTAO || progs[i].lideres.ata)).length;
   let presT = 0;
   let totT = 0;
-  realizadas.forEach((g) => {
+  realizadas.filter((g) => g.ata).forEach((g) => {
     const ps = presencas.filter((p) => p.ata_id === g.ata.id);
     presT += ps.filter((p) => p.presente).length;
     totT += ps.length;
@@ -247,7 +288,7 @@ function abrirModal(tipo, m) {
   const ex = excecao(tipo, m);
   const p = programacao(m);
   const r = tipo === "Geral" ? p.geral : p.lideres;
-  document.getElementById("modal-agenda-titulo").textContent = `${tipo === "Geral" ? "Reunião Geral" : "Reunião de Líderes"} — ${MESES[m]} ${ano}`;
+  document.getElementById("modal-agenda-titulo").textContent = `${tipo === "Geral" ? "Reunião Geral" : "Reunião de Líderes"} — ${MESES[M(m)]} ${A(m)}`;
   document.getElementById("ag-situacao").value = ex ? ex.situacao : "Agendada";
   document.getElementById("ag-data").value = (ex && ex.data) || (tipo === "Geral" ? r.padrao : "");
   document.getElementById("ag-obs").value = (ex && ex.observacao) || "";

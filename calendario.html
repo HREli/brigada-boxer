@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=202610218" />
+<link rel="stylesheet" href="css/style.css?v=202610219" />
 </head>
 <body>
 <header class="topbar">
@@ -35,14 +35,14 @@
   <div class="row justify-between mb-16">
     <div class="row">
       <button id="ano-anterior" class="btn btn-secondary">◀</button>
-      <h2 id="titulo-ano" style="margin:0 8px; color:var(--grafite);">2026</h2>
+      <h2 id="titulo-ano" style="margin:0 8px; color:var(--grafite);">Gestão</h2>
       <button id="ano-seguinte" class="btn btn-secondary">▶</button>
     </div>
     <div class="legenda-cal">
       <span><i class="pt prevista"></i>Prevista</span>
       <span><i class="pt realizada"></i>Realizada</span>
       <span><i class="pt atrasada"></i>Não realizada</span>
-      <span><i class="pt cinza"></i>Não necessária / cancelada</span>
+      <span><i class="pt cinza"></i>Não houve / cancelada</span>
     </div>
   </div>
 
@@ -64,6 +64,7 @@
       <label>Situação</label>
       <select id="ag-situacao">
         <option value="Agendada">Agendada</option>
+        <option value="Realizada">Realizada (registro fora do sistema)</option>
         <option value="Não necessária">Não haverá (não necessária)</option>
         <option value="Cancelada">Cancelada</option>
       </select>
@@ -85,7 +86,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="js/supabaseClient.js?v=202610218"></script>
-<script src="js/calendario.js?v=202610218"></script>
+<script src="js/supabaseClient.js?v=202610219"></script>
+<script src="js/calendario.js?v=202610219"></script>
 </body>
 </html>
