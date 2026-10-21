@@ -580,3 +580,30 @@ body { background: radial-gradient(circle at 10% -10%, rgba(214, 8, 8, 0.05), tr
 th.col-funcao, td.col-funcao, th.col-centro, td.col-centro { text-align: center; }
 td.col-funcao { min-width: 220px; }
 td.col-funcao .chip-area { margin: 2px; }
+
+/* Indicadores clicáveis */
+.indicator-card.clicavel { cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.indicator-card.clicavel:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.indicator-card.clicavel.aberto { border-color: var(--brand-red); box-shadow: 0 0 0 2px rgba(214,8,8,.15), var(--shadow-lg); }
+.indicator-card.clicavel .label::after { content: " ▾"; opacity: .5; }
+.indicator-card.clicavel.aberto .label::after { content: " ▴"; }
+.ind-detalhe { animation: fadein .2s ease; }
+.detalhe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.detalhe-item { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: .85rem; }
+.detalhe-item:hover { border-color: var(--brand-red); background: #fff7f7; }
+
+/* ---- Pessoas no prédio ---- */
+a.indicator-card.clicavel-link { display: block; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+a.indicator-card.clicavel-link:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--brand-red); }
+.info-lista { background: #eef7ee; border: 1px solid #b7e0b7; color: #14532d; padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 18px; font-size: .88rem; }
+.andar-bloco { margin-bottom: 22px; }
+.andar-cab { display: flex; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--brand-red); padding-bottom: 6px; margin-bottom: 10px; }
+.andar-cab h4 { margin: 0; font-size: 1rem; color: var(--grafite); letter-spacing: .5px; }
+.andar-total { font-weight: 800; color: var(--brand-red); }
+.setores-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; align-items: start; }
+.setor-card { border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+.setor-card summary { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; cursor: pointer; font-size: .86rem; list-style: none; }
+.setor-card summary::-webkit-details-marker { display: none; }
+.setor-card summary b { background: #fde8e8; color: var(--brand-red-dark); border-radius: 999px; padding: 1px 10px; }
+.setor-card[open] { border-color: var(--brand-red); }
+.setor-card ul { margin: 0; padding: 4px 14px 10px 30px; font-size: .8rem; line-height: 1.6; }

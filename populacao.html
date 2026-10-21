@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brigada Boxer — Pessoas no Prédio</title>
+<link rel="icon" type="image/svg+xml" href="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/favicon-boxer.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo-link"><img src="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/logo-boxer-branca.png" alt="Boxer Soldas" class="logo-boxer" /></a>
+  <div class="topbar-titulo">
+    <h1>BRIGADA DE INCÊNDIO</h1>
+    <p class="subtitle">Pessoas no Prédio</p>
+  </div>
+  <a href="index.html" class="back-link">← Menu Principal</a>
+</header>
+
+<div class="container">
+  <div id="config-warning" class="config-warning" style="display:none;"></div>
+  <div id="aviso-lista"></div>
+
+  <div class="indicators" id="indicadores-pop">
+    <div class="indicator-card total clicavel" data-ind="predio"><div class="value" id="ind-predio">0</div><div class="label">No prédio</div></div>
+    <div class="indicator-card clicavel" data-ind="TÉRREO"><div class="value" id="ind-terreo" style="color:var(--grafite);">0</div><div class="label">Térreo</div></div>
+    <div class="indicator-card clicavel" data-ind="1º ANDAR"><div class="value" id="ind-1andar" style="color:var(--grafite);">0</div><div class="label">1º andar</div></div>
+    <div class="indicator-card clicavel" data-ind="2º ANDAR"><div class="value" id="ind-2andar" style="color:var(--grafite);">0</div><div class="label">2º andar</div></div>
+    <div class="indicator-card clicavel" data-ind="externo"><div class="value" id="ind-externo" style="color:var(--text-muted);">0</div><div class="label">Externos / Home office</div></div>
+    <div class="indicator-card clicavel" data-ind="terceiros"><div class="value" id="ind-terceiros" style="color:var(--warn);">0</div><div class="label">Terceiros</div></div>
+  </div>
+  <div id="ind-detalhe" class="panel ind-detalhe" style="display:none;"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="andares">🏢 Por andar e setor</button>
+    <button class="tab-btn" data-tab="lista">📋 Lista completa</button>
+    <button class="tab-btn" data-tab="importar">📥 Atualizar lista</button>
+  </div>
+
+  <section id="tab-andares" class="tab-content">
+    <div class="panel">
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">Quantas pessoas há em cada andar e setor</h3>
+        <button id="btn-pdf-chamada" class="btn btn-primary">📄 Lista de chamada (ponto de encontro)</button>
+      </div>
+      <p class="text-muted small" style="margin-top:-6px;">Use a lista de chamada na evacuação para conferir, andar por andar, se todos chegaram ao ponto de encontro. 🔥 = brigadista.</p>
+      <div id="andares-container"></div>
+    </div>
+  </section>
+
+  <section id="tab-lista" class="tab-content" style="display:none;">
+    <div class="panel">
+      <div class="row mb-16">
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Buscar</label>
+          <input type="text" id="busca-pop" placeholder="Nome, setor, empresa..." />
+        </div>
+        <div class="field" style="min-width:170px;">
+          <label>Localização</label>
+          <select id="filtro-local-pop"><option value="">Todas</option></select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Empresa</th><th>Vínculo</th><th>Área / Departamento</th><th>Localização</th></tr></thead>
+          <tbody id="tabela-pop"></tbody>
+        </table>
+      </div>
+      <p class="small text-muted" id="contagem-pop"></p>
+    </div>
+  </section>
+
+  <section id="tab-importar" class="tab-content" style="display:none;">
+    <div class="panel">
+      <h3>Atualizar a lista de pessoas do prédio</h3>
+      <p class="text-muted">Envie a planilha <b>Relação de Colaboradores</b> (.xlsx) sempre que houver admissões, desligamentos ou mudanças de andar. A lista nova <b>substitui</b> a anterior (a anterior fica guardada no histórico).</p>
+      <ul class="text-muted small lista-colunas">
+        <li>Colunas lidas: <b>Nome</b> (obrigatória) · <b>Localização</b> · <b>Empresa</b> · <b>Vínculo</b> · <b>Matrícula</b> · <b>Área</b> · <b>Departamento</b>.</li>
+        <li>Datas de nascimento e admissão <b>não são gravadas</b> (não são necessárias para a evacuação).</li>
+        <li>Localização "Externo" ou "Home office" não conta como pessoa no prédio.</li>
+      </ul>
+      <div class="form-grid">
+        <div class="field">
+          <label>Arquivo da planilha</label>
+          <input type="file" id="input-pop" accept=".xlsx,.xls,.csv" />
+        </div>
+        <div class="field">
+          <label>Lista atualizada em</label>
+          <input type="date" id="data-ref-pop" />
+          <div class="small text-muted" style="margin-top:4px;">Lida da célula "Atualização em", se existir.</div>
+        </div>
+      </div>
+      <div id="previa-pop" class="mt-16"></div>
+      <div class="row mt-16">
+        <button id="btn-importar-pop" class="btn btn-primary" disabled>📥 Atualizar lista</button>
+      </div>
+      <h4 class="mt-16">Histórico de atualizações</h4>
+      <div id="historico-pop" class="small text-muted"></div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/supabaseClient.js"></script>
+<script src="js/populacao.js"></script>
+</body>
+</html>

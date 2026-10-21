@@ -79,6 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupFiltros();
   setupImportacaoPlanilha();
   setupImportacaoFotos();
+  setupIndicadores();
 
   document.getElementById("btn-print-quadro").addEventListener("click", () => window.print());
   document.getElementById("btn-export-pdf").addEventListener("click", exportarListaPDF);
@@ -104,9 +105,11 @@ function setupTabs() {
 async function carregarColaboradores() {
   if (!CONFIGURADO) return;
   try {
-    const { data, error } = await supabaseClient.from("brigadistas").select("*").order("nome");
+    // Esta tela cuida só dos brigadistas; a lista geral de colaboradores fica em "Pessoas no Prédio"
+    const { data, error } = await supabaseClient.from("brigadistas").select("*").eq("e_brigadista", true).order("nome");
     if (error) throw error;
     colaboradores = data || [];
+    carregarPopulacao();
   } catch (err) {
     console.error(err);
     showToast("Erro ao carregar colaboradores: " + err.message, "error");
@@ -143,11 +146,84 @@ function atualizarDatalists() {
   sel.value = atual;
 }
 
+let populacao = [];
+async function carregarPopulacao() {
+  try {
+    const { data: imp } = await supabaseClient.from("populacao_importacoes").select("id").order("created_at", { ascending: false }).limit(1);
+    if (!imp || !imp.length) return;
+    const { data } = await supabaseClient.from("populacao").select("nome,area,departamento,localizacao,vinculo").eq("importacao_id", imp[0].id);
+    populacao = data || [];
+    const fora = (p) => !p.localizacao || /EXTERNO|HOME/i.test(p.localizacao);
+    document.getElementById("ind-ativos").textContent = populacao.filter((p) => !fora(p)).length;
+    const jaBrig = new Set(colaboradores.map((c) => normalizarNome(c.nome)));
+    document.getElementById("dl-pessoas").innerHTML = populacao
+      .filter((p) => !jaBrig.has(normalizarNome(p.nome)))
+      .map((p) => `<option value="${escHtml(p.nome)}">${escHtml([p.departamento, p.localizacao].filter(Boolean).join(" · "))}</option>`)
+      .join("");
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+let indicadorAberto = null;
+const INDICADORES = {
+  ativos: { titulo: "Brigadistas ativos", filtro: (c) => c.ativo },
+  brigadistas: { titulo: "Brigadistas ativos", filtro: (c) => c.ativo && c.e_brigadista },
+  inativos: { titulo: "Inativos", filtro: (c) => !c.ativo },
+  semfoto: { titulo: "Ativos sem foto", filtro: (c) => c.ativo && !c.foto_url },
+};
+
+function setupIndicadores() {
+  document.querySelectorAll(".indicator-card.clicavel").forEach((card) =>
+    card.addEventListener("click", () => {
+      indicadorAberto = indicadorAberto === card.dataset.ind ? null : card.dataset.ind;
+      renderDetalheIndicador();
+    })
+  );
+}
+
+function renderDetalheIndicador() {
+  const painel = document.getElementById("ind-detalhe");
+  document.querySelectorAll(".indicator-card.clicavel").forEach((c) => c.classList.toggle("aberto", c.dataset.ind === indicadorAberto));
+  if (!indicadorAberto) {
+    painel.style.display = "none";
+    return;
+  }
+  const cfg = INDICADORES[indicadorAberto];
+  const lista = colaboradores.filter(cfg.filtro).sort((a, b) => a.nome.localeCompare(b.nome));
+  painel.style.display = "block";
+  painel.innerHTML = `
+    <div class="row justify-between mb-16">
+      <h3 style="margin:0;">${cfg.titulo} <span class="org-count">${lista.length}</span></h3>
+      <button class="btn btn-secondary" id="btn-fechar-detalhe">✕ Fechar</button>
+    </div>
+    ${
+      lista.length
+        ? `<div class="detalhe-grid">${lista
+            .map(
+              (c) => `<div class="detalhe-item" data-id="${c.id}" title="Clique para editar">
+                <img class="avatar avatar-sm" src="${escHtml(c.foto_url || FOTO_PADRAO)}" />
+                <div><b>${escHtml(c.nome)}</b>
+                  <div class="small text-muted">${escHtml([c.e_brigadista ? c.funcao : c.departamento || c.area, c.piso].filter(Boolean).join(" · "))}</div>
+                </div>
+              </div>`
+            )
+            .join("")}</div>`
+        : '<div class="empty-state small" style="padding:16px;">Ninguém nesta lista.</div>'
+    }`;
+  document.getElementById("btn-fechar-detalhe").addEventListener("click", () => {
+    indicadorAberto = null;
+    renderDetalheIndicador();
+  });
+  painel.querySelectorAll(".detalhe-item").forEach((d) => d.addEventListener("click", () => abrirModal(d.dataset.id)));
+}
+
 function renderIndicadores() {
-  document.getElementById("ind-ativos").textContent = colaboradores.filter((c) => c.ativo).length;
+
   document.getElementById("ind-brigadistas").textContent = brigadistasAtivos().length;
   document.getElementById("ind-inativos").textContent = colaboradores.filter((c) => !c.ativo).length;
   document.getElementById("ind-sem-foto").textContent = colaboradores.filter((c) => c.ativo && !c.foto_url).length;
+  renderDetalheIndicador();
 }
 
 // ---------------- Quadro Hierárquico ----------------
@@ -284,6 +360,16 @@ function setupModal() {
     if (e.target.id === "modal-colab") fecharModal();
   });
   document.getElementById("campo-brigadista").addEventListener("change", atualizarCamposBrigada);
+  // Ao escolher um nome da lista de colaboradores, preenche área, departamento e localização
+  document.getElementById("campo-nome").addEventListener("change", (e) => {
+    if (document.getElementById("colab-id").value) return;
+    const p = populacao.find((x) => normalizarNome(x.nome) === normalizarNome(e.target.value));
+    if (!p) return;
+    if (!document.getElementById("campo-area").value) document.getElementById("campo-area").value = p.area || "";
+    if (!document.getElementById("campo-depto").value) document.getElementById("campo-depto").value = p.departamento || "";
+    if (!document.getElementById("campo-local").value) document.getElementById("campo-local").value = (p.localizacao || "").toUpperCase();
+    if (!document.getElementById("campo-vinculo").value) document.getElementById("campo-vinculo").value = p.vinculo || "";
+  });
   document.getElementById("campo-funcao").addEventListener("input", atualizarCampoAreas);
   document.getElementById("campo-ch").addEventListener("input", atualizarCampoAreas);
   document.getElementById("foto-input").addEventListener("change", (e) => {
@@ -314,7 +400,7 @@ function abrirModal(id) {
   const c = id ? colaboradores.find((x) => x.id === id) : null;
   document.getElementById("form-colab").reset();
   fotoArquivoSelecionado = null;
-  document.getElementById("modal-titulo").textContent = c ? "Editar colaborador" : "Novo colaborador";
+  document.getElementById("modal-titulo").textContent = c ? "Editar brigadista" : "Novo brigadista";
   document.getElementById("colab-id").value = c ? c.id : "";
   document.getElementById("campo-nome").value = c ? c.nome : "";
   document.getElementById("campo-vinculo").value = c ? c.vinculo || "" : "";
@@ -322,7 +408,7 @@ function abrirModal(id) {
   document.getElementById("campo-area").value = c ? c.area || "" : "";
   document.getElementById("campo-depto").value = c ? c.departamento || "" : "";
   document.getElementById("campo-ativo").checked = c ? c.ativo : true;
-  document.getElementById("campo-brigadista").checked = c ? c.e_brigadista : false;
+  document.getElementById("campo-brigadista").checked = c ? c.e_brigadista : true;
   document.getElementById("campo-cargo").value = c ? c.cargo || "" : "";
   document.getElementById("campo-funcao").value = c ? c.funcao || "" : "";
   document.getElementById("campo-tipo").value = c ? c.tipo_brigada || "" : "";

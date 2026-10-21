@@ -25,16 +25,18 @@
   <div id="config-warning" class="config-warning" style="display:none;"></div>
 
   <div class="indicators">
-    <div class="indicator-card total"><div class="value" id="ind-ativos">0</div><div class="label">Colaboradores ativos</div></div>
-    <div class="indicator-card concluida"><div class="value" id="ind-brigadistas">0</div><div class="label">Brigadistas ativos</div></div>
-    <div class="indicator-card"><div class="value" id="ind-inativos" style="color:var(--text-muted);">0</div><div class="label">Inativos</div></div>
-    <div class="indicator-card atrasada"><div class="value" id="ind-sem-foto">0</div><div class="label">Sem foto</div></div>
+    <a class="indicator-card total clicavel-link" href="populacao.html" title="Ver pessoas no prédio por andar"><div class="value" id="ind-ativos">-</div><div class="label">Pessoas no prédio ↗</div></a>
+    <div class="indicator-card concluida clicavel" data-ind="brigadistas" title="Clique para ver quem são"><div class="value" id="ind-brigadistas">0</div><div class="label">Brigadistas ativos</div></div>
+    <div class="indicator-card clicavel" data-ind="inativos" title="Clique para ver quem são"><div class="value" id="ind-inativos" style="color:var(--text-muted);">0</div><div class="label">Inativos</div></div>
+    <div class="indicator-card atrasada clicavel" data-ind="semfoto" title="Clique para ver quem são"><div class="value" id="ind-sem-foto">0</div><div class="label">Sem foto</div></div>
   </div>
+
+  <div id="ind-detalhe" class="panel ind-detalhe" style="display:none;"></div>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="quadro">🏢 Quadro da Brigada</button>
     <button class="tab-btn" data-tab="areas">🗺️ Áreas de Evacuação</button>
-    <button class="tab-btn" data-tab="colaboradores">👥 Colaboradores</button>
+    <button class="tab-btn" data-tab="colaboradores">📋 Lista de Brigadistas</button>
     <button class="tab-btn" data-tab="importar">📥 Importar Planilha</button>
     <button class="tab-btn" data-tab="fotos">🖼️ Importar Fotos</button>
   </div>
@@ -71,8 +73,8 @@
   <section id="tab-colaboradores" class="tab-content" style="display:none;">
     <div class="panel">
       <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Quadro de Colaboradores</h3>
-        <button id="btn-novo" class="btn btn-primary">+ Novo colaborador</button>
+        <h3 style="margin:0;">Brigadistas</h3>
+        <button id="btn-novo" class="btn btn-primary">+ Novo brigadista</button>
       </div>
       <div class="row mb-16">
         <div class="field" style="flex:1; min-width:200px;">
@@ -87,7 +89,7 @@
             <option value="todos">Todos</option>
           </select>
         </div>
-        <div class="field" style="min-width:170px;">
+        <div class="field" style="min-width:170px; display:none;">
           <label>Brigada</label>
           <select id="filtro-brigada">
             <option value="todos">Todos</option>
@@ -183,7 +185,7 @@
         </div>
         <div class="field field-full">
           <label>Nome completo *</label>
-          <input type="text" id="campo-nome" required />
+          <input type="text" id="campo-nome" required list="dl-pessoas" placeholder="Comece a digitar — sugere da lista de colaboradores" />
         </div>
         <div class="field">
           <label>Vínculo</label>
@@ -266,6 +268,7 @@
 <datalist id="dl-depto"></datalist>
 <datalist id="dl-funcao"></datalist>
 <datalist id="dl-setores"></datalist>
+<datalist id="dl-pessoas"></datalist>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

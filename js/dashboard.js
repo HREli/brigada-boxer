@@ -227,6 +227,24 @@ async function carregarDashboard() {
       });
     }
 
+    // ---------------- Pessoas no prédio ----------------
+    const { data: imp } = await supabaseClient.from("populacao_importacoes").select("*").order("created_at", { ascending: false }).limit(1);
+    if (imp && imp.length) {
+      const { data: pop } = await supabaseClient.from("populacao").select("localizacao").eq("importacao_id", imp[0].id);
+      document.getElementById("dash-predio").textContent = (pop || []).filter((p) => p.localizacao && !/EXTERNO|HOME/i.test(p.localizacao)).length;
+      const ref = imp[0].data_referencia || imp[0].created_at.slice(0, 10);
+      if (diasEntreDash(ref) < -30) {
+        alertas.unshift({
+          titulo: "Lista de pessoas do prédio desatualizada",
+          sub: `Última atualização: ${formatarDataDash(ref)} — envie a planilha nova em Pessoas no Prédio`,
+          badge: '<span class="badge badge-warn">Evacuação</span>',
+        });
+      }
+    } else {
+      document.getElementById("dash-predio").textContent = "0";
+      alertas.unshift({ titulo: "Lista de pessoas do prédio não enviada", sub: "Importe a Relação de Colaboradores em Pessoas no Prédio", badge: '<span class="badge badge-danger">Evacuação</span>' });
+    }
+
     renderAlertas(alertas);
   } catch (err) {
     console.error(err);
