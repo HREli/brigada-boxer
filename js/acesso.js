@@ -58,7 +58,7 @@ function montarBotaoAcesso() {
   if (!acesso.editor) {
     const faixa = document.createElement("div");
     faixa.className = "faixa-leitura";
-    faixa.innerHTML = '👁️ Modo <b>somente visualização</b>. Coordenador e líderes de andar: clique em <b>🔒 Entrar</b> para editar.';
+    faixa.innerHTML = '👁️ Modo <b>somente visualização</b>. Líderes autorizados: clique em <b>🔒 Entrar</b> para editar.';
     const cont = document.querySelector(".container");
     if (cont) cont.prepend(faixa);
   }
@@ -86,7 +86,7 @@ function telaEntrar(m, modo = "entrar") {
     <p class="small text-muted" style="margin-top:0;">${
       criar
         ? "Para o primeiro acesso ou se esqueceu a senha. Confirme seus dados e escolha a senha nova."
-        : "Acesso do coordenador e dos líderes de andar."
+        : "Acesso dos líderes autorizados da brigada."
     }</p>
     <div class="field"><label>CPF</label><input type="text" id="ac-cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="username" /></div>
     ${criar ? '<div class="field mt-16"><label>Data de nascimento</label><input type="date" id="ac-nasc" /></div>' : ""}
