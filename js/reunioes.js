@@ -17,6 +17,8 @@ const ROTULO_ENC = { "Líderes": "Fica com os líderes", "Pauta Geral": "Pauta d
 let brigadistasAtivos = [];
 let itensLideresPendentes = [];
 let presencaNova = {}; // id do brigadista -> { presente, justificativa }
+// Reunião Geral: registro em "modo reunião" (um cartão por assunto da ordem do dia)
+const MODO_REUNIAO = !!document.getElementById("ordem-dia");
 
 document.addEventListener("DOMContentLoaded", () => {
   mostrarAvisoConfiguracao();
@@ -25,9 +27,13 @@ document.addEventListener("DOMContentLoaded", () => {
   atualizarEmptyAcoes();
   document.getElementById("ata-data").value = hojeISOLocal();
 
-  document.getElementById("btn-add-acao").addEventListener("click", () => adicionarLinhaAcao());
+  const btnAdd = document.getElementById("btn-add-acao");
+  if (btnAdd) btnAdd.addEventListener("click", () => adicionarLinhaAcao());
   document.getElementById("btn-salvar-ata").addEventListener("click", salvarAta);
-  if (TIPO === "Geral") {
+  if (MODO_REUNIAO) {
+    iniciarModoReuniao();
+    carregarItensLideres();
+  } else if (TIPO === "Geral") {
     document.getElementById("btn-inserir-pautas").addEventListener("click", inserirPautasNoConteudo);
     carregarItensLideres();
   }
@@ -60,6 +66,10 @@ async function carregarBrigadistas() {
   document.getElementById("lista-brigadistas").innerHTML = brigadistasAtivos.map((b) => `<option value="${escHtml(b.nome)}"></option>`).join("");
   presencaNova = {};
   convidados().forEach((b) => (presencaNova[b.id] = { presente: true, justificativa: "" }));
+  if (MODO_REUNIAO && rascunho && rascunho.presenca)
+    Object.entries(rascunho.presenca).forEach(([id, e]) => {
+      if (presencaNova[id]) presencaNova[id] = { presente: e.presente !== false, justificativa: e.justificativa || "" };
+    });
   renderPresenca(document.getElementById("presenca-lista"), convidados(), presencaNova, document.getElementById("presenca-resumo"));
 }
 
@@ -135,21 +145,24 @@ function adicionarLinhaAcao(pre = {}) {
 
 function atualizarEmptyAcoes() {
   const c = document.getElementById("acoes-container");
+  if (!c) return;
   document.getElementById("acoes-empty").style.display = c.children.length === 0 ? "block" : "none";
 }
 
 function coletarAcoes() {
   const itens = [];
   const erros = [];
-  document.querySelectorAll("#acoes-container .acao-row").forEach((row, i) => {
+  document.querySelectorAll("#tab-nova .acao-row").forEach((row, i) => {
     const descricao = row.querySelector(".acao-descricao").value.trim();
     const responsavel = row.querySelector(".acao-responsavel").value.trim();
     const prazo = row.querySelector(".acao-prazo").value;
     const encaminhamento = TIPO === "Lideres" ? row.querySelector(".acao-encaminhamento").value : null;
-    const tema = row.querySelector(".acao-tema").value || "Outros";
+    const card = row.closest(".assunto");
+    const tema = card ? temaDoAssunto(card) : row.querySelector(".acao-tema").value || "Outros";
+    const rotulo = card ? `Ação do assunto ${card.querySelector(".assunto-num").textContent}` : `Item ${i + 1}`;
     if (!descricao && !responsavel && !prazo) return;
-    if (!descricao) return erros.push(`Item ${i + 1}: falta a descrição.`);
-    if (encaminhamento !== "Pauta Geral" && (!responsavel || !prazo)) return erros.push(`Item ${i + 1}: informe responsável e prazo.`);
+    if (!descricao) return erros.push(`${rotulo}: falta a descrição.`);
+    if (encaminhamento !== "Pauta Geral" && (!responsavel || !prazo)) return erros.push(`${rotulo}: informe responsável e prazo.`);
     itens.push({ descricao, responsavel: responsavel || null, prazo: prazo || null, encaminhamento, tema, pautaId: row.dataset.pautaId || null });
   });
   return { itens, erros };
@@ -174,6 +187,7 @@ async function carregarItensLideres() {
 }
 
 function renderItensLideres() {
+  if (MODO_REUNIAO) return renderOrdemDia();
   const lista = document.getElementById("vindos-lideres-lista");
   document.getElementById("vindos-lideres-empty").style.display = itensLideresPendentes.length ? "none" : "block";
   document.getElementById("btn-inserir-pautas").style.display = itensLideresPendentes.length ? "inline-flex" : "none";
@@ -234,8 +248,10 @@ function inserirPautasNoConteudo() {
 async function salvarAta() {
   if (!CONFIGURADO) return showToast("Configure o Supabase antes de salvar.", "error");
   const data_reuniao = document.getElementById("ata-data").value;
-  const conteudo = document.getElementById("ata-conteudo").value.trim();
-  if (!data_reuniao || !conteudo) return showToast("Preencha a data e o conteúdo da reunião.", "error");
+  const conteudo = MODO_REUNIAO ? montarConteudoAta() : document.getElementById("ata-conteudo").value.trim();
+  if (!data_reuniao) return showToast("Preencha a data da reunião.", "error");
+  if (MODO_REUNIAO && !temRegistro()) return showToast("Registre a discussão ou a decisão de pelo menos um assunto.", "error");
+  if (!conteudo) return showToast("Preencha a data e o conteúdo da reunião.", "error");
 
   const { itens, erros } = coletarAcoes();
   if (erros.length) return showToast(erros[0], "error");
@@ -285,8 +301,11 @@ async function salvarAta() {
     if (vinculados.length) partes.push(`${vinculados.length} item(ns) dos líderes vinculados`);
     showToast("ATA registrada!" + (partes.length ? " " + partes.join(", ") + "." : ""), "success");
 
-    document.getElementById("ata-conteudo").value = "";
-    document.getElementById("acoes-container").innerHTML = "";
+    if (MODO_REUNIAO) limparModoReuniao();
+    else {
+      document.getElementById("ata-conteudo").value = "";
+      document.getElementById("acoes-container").innerHTML = "";
+    }
     carregarBrigadistas();
     atualizarEmptyAcoes();
     if (TIPO === "Geral") carregarItensLideres();
@@ -604,4 +623,303 @@ async function gerarPdfAta(ataId) {
 
   rodapePdf(doc);
   doc.save(`ata-${TIPO === "Geral" ? "reuniao-geral" : "reuniao-lideres"}-${ata.data_reuniao}.pdf`);
+}
+
+// =========================================================================
+// MODO REUNIÃO (Reunião Geral)
+// Um cartão por assunto: discussão, decisão e ações ficam juntas. O texto da
+// ATA é montado a partir dos cartões, e o rascunho fica guardado no navegador.
+// =========================================================================
+const CHAVE_RASCUNHO = "brigada-rascunho-ata-" + TIPO;
+let rascunho = lerRascunho();
+let timerRascunho = null;
+
+function lerRascunho() {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_RASCUNHO) || "null");
+  } catch (e) {
+    return null;
+  }
+}
+
+function iniciarModoReuniao() {
+  if (rascunho && rascunho.data) document.getElementById("ata-data").value = rascunho.data;
+  if (rascunho && rascunho.obs) document.getElementById("ata-obs").value = rascunho.obs;
+  ((rascunho && rascunho.novos) || []).forEach((n) => adicionarAssuntoNovo(n));
+  document.getElementById("btn-novo-assunto").addEventListener("click", () => {
+    const c = adicionarAssuntoNovo();
+    c.querySelector(".as-titulo").focus();
+    salvarRascunhoDepois();
+  });
+  const tab = document.getElementById("tab-nova");
+  tab.addEventListener("input", (e) => {
+    if (e.target.tagName === "TEXTAREA") autoAltura(e.target);
+    salvarRascunhoDepois();
+  });
+  tab.addEventListener("change", salvarRascunhoDepois);
+  document.getElementById("previa-ata").addEventListener("toggle", atualizarPrevia);
+  document.getElementById("btn-limpar-rascunho").addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!confirm("Apagar o rascunho e começar o registro do zero?")) return;
+    limparModoReuniao();
+    carregarBrigadistas();
+    carregarItensLideres();
+  });
+  autoAltura(document.getElementById("ata-obs"));
+  if (rascunho) mostrarStatusRascunho("📝 Rascunho recuperado (" + horaDe(rascunho.ts) + ")");
+}
+
+function renderOrdemDia() {
+  const cont = document.getElementById("ordem-dia");
+  document.getElementById("vindos-lideres-empty").style.display = itensLideresPendentes.length ? "none" : "block";
+  itensLideresPendentes.sort((a, b) => ordemTema(a.tema) - ordemTema(b.tema) || (a.prazo || "9").localeCompare(b.prazo || "9"));
+  cont.innerHTML = "";
+  let temaAtual = null;
+  itensLideresPendentes.forEach((i) => {
+    if (i.tema !== temaAtual) {
+      temaAtual = i.tema;
+      const h = document.createElement("div");
+      h.className = "tema-cab";
+      h.textContent = i.tema || "Outros";
+      cont.appendChild(h);
+    }
+    const r = (rascunho && rascunho.cards && rascunho.cards[i.id]) || {};
+    const ePauta = i.encaminhamento === "Pauta Geral";
+    const meta = [i.responsavel && "Responsável: " + escHtml(i.responsavel), i.prazo && "prazo " + formatarDataBR(i.prazo), "Reunião de Líderes de " + formatarDataBR(i.ata && i.ata.data_reuniao)]
+      .filter(Boolean)
+      .join(" · ");
+    const card = document.createElement("div");
+    card.className = "assunto";
+    card.dataset.id = i.id;
+    card.dataset.tema = i.tema || "Outros";
+    card.innerHTML = `<div class="assunto-cab">
+        <span class="assunto-num"></span>
+        <div class="assunto-titulo">
+          <span class="badge ${ePauta ? "badge-brigada" : "badge-warn"}">${ePauta ? "Pauta" : "Ação"}</span>
+          <b>${escHtml(i.descricao)}</b>
+          <div class="small text-muted">${meta}</div>
+        </div>
+        <label class="assunto-chk small"><input type="checkbox" class="chk-item-lider" data-id="${i.id}" ${r.chk === false ? "" : "checked"} /> tratado</label>
+      </div>
+      ${corpoAssunto(r)}`;
+    cont.appendChild(card);
+    ligarAssunto(card, r, ePauta ? i.descricao : "");
+  });
+  renumerar();
+}
+
+function corpoAssunto(r) {
+  return `<div class="assunto-corpo">
+    <div class="assunto-campos">
+      <div class="field"><label>Discussão</label><textarea class="as-disc" placeholder="O que foi falado">${escHtml(r.disc || "")}</textarea></div>
+      <div class="field"><label>Decisão</label><textarea class="as-dec" placeholder="O que ficou decidido">${escHtml(r.dec || "")}</textarea></div>
+    </div>
+    <div class="as-acoes"></div>
+    <button type="button" class="btn btn-secondary btn-as-acao">+ Ação</button>
+  </div>`;
+}
+
+function ligarAssunto(card, r, descPadrao) {
+  const chk = card.querySelector(".chk-item-lider");
+  if (chk) {
+    const upd = () => {
+      card.classList.toggle("nao-tratado", !chk.checked);
+      renumerar();
+    };
+    chk.addEventListener("change", upd);
+    upd();
+  }
+  (r.acoes || []).forEach((a) => adicionarAcaoNoAssunto(card, a));
+  card.querySelector(".btn-as-acao").addEventListener("click", () => {
+    const primeira = !card.querySelector(".acao-row");
+    const padrao = typeof descPadrao === "function" ? descPadrao() : descPadrao;
+    const row = adicionarAcaoNoAssunto(card, { d: primeira ? padrao : "" });
+    row.querySelector(primeira && padrao ? ".acao-responsavel" : ".acao-descricao").focus();
+    salvarRascunhoDepois();
+  });
+  card.querySelectorAll("textarea").forEach(autoAltura);
+}
+
+function adicionarAcaoNoAssunto(card, a = {}) {
+  const row = document.getElementById("tpl-acao-row").content.firstElementChild.cloneNode(true);
+  row.querySelector(".acao-tema").closest(".field").style.display = "none";
+  row.querySelector(".acao-descricao").value = a.d || "";
+  row.querySelector(".acao-responsavel").value = a.r || "";
+  row.querySelector(".acao-prazo").value = a.p || "";
+  row.querySelector(".btn-remove-acao").addEventListener("click", () => {
+    row.remove();
+    salvarRascunhoDepois();
+  });
+  card.querySelector(".as-acoes").appendChild(row);
+  return row;
+}
+
+function adicionarAssuntoNovo(r = {}) {
+  const card = document.createElement("div");
+  card.className = "assunto assunto-novo";
+  card.innerHTML = `<div class="assunto-cab">
+      <span class="assunto-num"></span>
+      <div class="assunto-titulo row" style="gap:8px;">
+        <input type="text" class="as-titulo" placeholder="Qual é o assunto?" value="${escHtml(r.titulo || "")}" style="flex:2; min-width:200px;" />
+        <select class="as-tema" style="flex:1; min-width:170px;">${opcoesTema(r.tema || "Outros")}</select>
+      </div>
+      <button type="button" class="btn btn-secondary btn-as-remover" title="Remover este assunto">✕</button>
+    </div>
+    ${corpoAssunto(r)}`;
+  document.getElementById("novos-assuntos").appendChild(card);
+  ligarAssunto(card, r, () => card.querySelector(".as-titulo").value.trim());
+  card.querySelector(".btn-as-remover").addEventListener("click", () => {
+    const d = dadosAssunto(card);
+    const temTexto = card.querySelector(".as-titulo").value.trim() || d.disc.trim() || d.dec.trim() || d.acoes.length;
+    if (temTexto && !confirm("Remover este assunto e o que foi escrito nele?")) return;
+    card.remove();
+    renumerar();
+    salvarRascunhoDepois();
+  });
+  renumerar();
+  return card;
+}
+
+function temaDoAssunto(card) {
+  const sel = card.querySelector(".as-tema");
+  return (sel && sel.value) || card.dataset.tema || "Outros";
+}
+
+function renumerar() {
+  let n = 0;
+  document.querySelectorAll("#tab-nova .assunto").forEach((c) => {
+    c.querySelector(".assunto-num").textContent = c.classList.contains("nao-tratado") ? "–" : ++n;
+  });
+}
+
+function dadosAssunto(c) {
+  return {
+    disc: c.querySelector(".as-disc").value,
+    dec: c.querySelector(".as-dec").value,
+    acoes: [...c.querySelectorAll(".acao-row")]
+      .map((r) => ({ d: r.querySelector(".acao-descricao").value, r: r.querySelector(".acao-responsavel").value, p: r.querySelector(".acao-prazo").value }))
+      .filter((a) => a.d || a.r || a.p),
+  };
+}
+
+function assuntosNovosPreenchidos() {
+  return [...document.querySelectorAll("#novos-assuntos .assunto")].filter((c) => {
+    const d = dadosAssunto(c);
+    return c.querySelector(".as-titulo").value.trim() || d.disc.trim() || d.dec.trim() || d.acoes.length;
+  });
+}
+
+function temRegistro() {
+  const tratados = [...document.querySelectorAll("#ordem-dia .assunto:not(.nao-tratado)")];
+  const algum = tratados.some((c) => {
+    const d = dadosAssunto(c);
+    return d.disc.trim() || d.dec.trim() || d.acoes.length;
+  });
+  return algum || assuntosNovosPreenchidos().length > 0 || !!document.getElementById("ata-obs").value.trim();
+}
+
+// Texto da ATA (vai para o histórico e para o PDF)
+function montarConteudoAta() {
+  const recuo = (t) => t.trim().split("\n").join("\n      ");
+  const bloco = (n, titulo, card) => {
+    const d = dadosAssunto(card);
+    let s = `${n}. ${titulo}`;
+    if (d.disc.trim()) s += `\n   Discussão: ${recuo(d.disc)}`;
+    if (d.dec.trim()) s += `\n   Decisão: ${recuo(d.dec)}`;
+    d.acoes
+      .filter((a) => a.d.trim())
+      .forEach((a) => (s += `\n   • Ação: ${a.d.trim()}${a.r.trim() ? " — " + a.r.trim() : ""}${a.p ? ", prazo " + formatarDataBR(a.p) : ""}`));
+    return s;
+  };
+  let n = 0;
+  const partes = [];
+  const tratados = [...document.querySelectorAll("#ordem-dia .assunto:not(.nao-tratado)")];
+  if (tratados.length) {
+    const sec = ["ORDEM DO DIA (trazida da Reunião de Líderes)"];
+    let tema = null;
+    tratados.forEach((c) => {
+      const item = itensLideresPendentes.find((x) => x.id === c.dataset.id);
+      if (!item) return;
+      if (item.tema !== tema) sec.push((tema = item.tema || "Outros").toUpperCase());
+      let titulo = item.descricao;
+      if (item.encaminhamento === "Ação Geral" && item.responsavel)
+        titulo += ` (responsável: ${item.responsavel}${item.prazo ? ", prazo " + formatarDataBR(item.prazo) : ""})`;
+      sec.push(bloco(++n, titulo, c));
+    });
+    partes.push(sec.join("\n\n"));
+  }
+  const novos = assuntosNovosPreenchidos();
+  if (novos.length)
+    partes.push(
+      "OUTROS ASSUNTOS\n\n" +
+        novos.map((c) => bloco(++n, `${c.querySelector(".as-titulo").value.trim() || "Assunto"} [${temaDoAssunto(c)}]`, c)).join("\n\n")
+    );
+  const obs = document.getElementById("ata-obs").value.trim();
+  if (obs) partes.push("OBSERVAÇÕES GERAIS\n\n" + obs);
+  return partes.join("\n\n");
+}
+
+function atualizarPrevia() {
+  if (!document.getElementById("previa-ata").open) return;
+  document.getElementById("ata-previa").textContent = montarConteudoAta() || "(nada registrado ainda)";
+}
+
+function salvarRascunhoDepois() {
+  clearTimeout(timerRascunho);
+  timerRascunho = setTimeout(salvarRascunho, 400);
+}
+
+function salvarRascunho() {
+  const cards = {};
+  document.querySelectorAll("#ordem-dia .assunto").forEach((c) => (cards[c.dataset.id] = { chk: c.querySelector(".chk-item-lider").checked, ...dadosAssunto(c) }));
+  const novos = [...document.querySelectorAll("#novos-assuntos .assunto")].map((c) => ({
+    titulo: c.querySelector(".as-titulo").value,
+    tema: c.querySelector(".as-tema").value,
+    ...dadosAssunto(c),
+  }));
+  rascunho = {
+    ts: Date.now(),
+    data: document.getElementById("ata-data").value,
+    obs: document.getElementById("ata-obs").value,
+    presenca: Object.keys(presencaNova).length ? presencaNova : (rascunho && rascunho.presenca) || {},
+    cards: { ...((rascunho && rascunho.cards) || {}), ...cards },
+    novos,
+  };
+  try {
+    localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(rascunho));
+    mostrarStatusRascunho("💾 Rascunho salvo às " + horaDe(rascunho.ts));
+  } catch (e) {
+    mostrarStatusRascunho("⚠️ Este navegador não permitiu guardar o rascunho");
+  }
+  atualizarPrevia();
+}
+
+function limparModoReuniao() {
+  clearTimeout(timerRascunho);
+  try {
+    localStorage.removeItem(CHAVE_RASCUNHO);
+  } catch (e) {}
+  rascunho = null;
+  document.getElementById("novos-assuntos").innerHTML = "";
+  document.getElementById("ata-obs").value = "";
+  document.getElementById("ata-data").value = hojeISOLocal();
+  document.getElementById("previa-ata").open = false;
+  mostrarStatusRascunho("");
+}
+
+function mostrarStatusRascunho(t) {
+  document.getElementById("rascunho-status").textContent = t;
+  document.getElementById("btn-limpar-rascunho").style.display = t ? "inline" : "none";
+}
+
+function horaDe(ts) {
+  const d = new Date(ts);
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? hora : d.toLocaleDateString("pt-BR") + " " + hora;
+}
+
+function autoAltura(t) {
+  if (!t) return;
+  t.style.height = "auto";
+  t.style.height = Math.max(64, t.scrollHeight + 2) + "px";
 }

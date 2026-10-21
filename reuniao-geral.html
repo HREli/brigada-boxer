@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=2026102111" />
+<link rel="stylesheet" href="css/style.css?v=2026102112" />
 </head>
 <body data-tipo="Geral">
 <header class="topbar">
@@ -38,33 +38,19 @@
   </div>
 
   <section id="tab-nova" class="tab-content">
-    <div class="panel" id="painel-vindos-lideres">
-      <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Trazido da Reunião de Líderes</h3>
-        <button type="button" id="btn-inserir-pautas" class="btn btn-outline">⤵️ Montar pauta no conteúdo</button>
-      </div>
-      <p class="text-muted small" style="margin-top:-8px;">Itens que os líderes encaminharam para esta reunião. Os marcados serão vinculados a esta ATA ao salvar. Uma pauta pode virar ação com o botão ➕.</p>
-      <div id="vindos-lideres-lista"></div>
-      <div id="vindos-lideres-empty" class="empty-state small" style="padding:18px;">Nenhum item pendente da Reunião de Líderes.</div>
-    </div>
-
     <div class="panel">
-      <h3>Registro da Reunião</h3>
+      <div class="row justify-between mb-16">
+        <h3 style="margin:0;">1 · Abertura</h3>
+        <span class="small text-muted"><span id="rascunho-status"></span> <a href="#" id="btn-limpar-rascunho" style="display:none;color:var(--brand-red);">limpar rascunho</a></span>
+      </div>
       <div class="form-grid">
         <div class="field">
           <label>Data da Reunião *</label>
           <input type="date" id="ata-data" required />
         </div>
       </div>
-      <div class="field field-full mt-16">
-        <label>Conteúdo da Reunião (pautas, discussões, decisões) *</label>
-        <textarea id="ata-conteudo" style="min-height:180px;" placeholder="Descreva tudo o que foi tratado na reunião..."></textarea>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Lista de Presença</h3>
+      <div class="row justify-between mt-16 mb-16">
+        <h4 style="margin:0;">Lista de Presença</h4>
         <span class="small" id="presenca-resumo"></span>
       </div>
       <p class="text-muted small" style="margin-top:-8px;">Todos começam como <b>presentes</b>. Desmarque só quem faltou e, se quiser, informe o motivo. Só os presentes entram na lista de assinaturas da ATA.</p>
@@ -72,16 +58,30 @@
     </div>
 
     <div class="panel">
-      <div class="row justify-between mb-16">
-        <h3 style="margin:0;">Ações Geradas na Reunião</h3>
-        <button type="button" id="btn-add-acao" class="btn btn-secondary">+ Adicionar Ação</button>
-      </div>
-      <div id="acoes-container"></div>
-      <div id="acoes-empty" class="empty-state small" style="padding:20px;">Nenhuma ação adicionada ainda (opcional).</div>
+      <h3>2 · Ordem do dia</h3>
+      <p class="text-muted small" style="margin-top:-8px;">Siga os assuntos na ordem. Em cada um, anote a <b>discussão</b> e a <b>decisão</b>; se surgir uma tarefa, clique em <b>+ Ação</b> ali mesmo. Assunto que não foi tratado: desmarque <b>tratado</b> e ele fica para a próxima reunião.</p>
+      <div id="ordem-dia"></div>
+      <div id="vindos-lideres-empty" class="empty-state small" style="padding:18px;">Nenhum item pendente da Reunião de Líderes.</div>
+      <div class="tema-cab mt-16">Outros assuntos</div>
+      <div id="novos-assuntos"></div>
+      <button type="button" id="btn-novo-assunto" class="btn btn-outline mt-16">+ Novo assunto</button>
     </div>
 
-    <div class="row">
+    <div class="panel">
+      <h3>3 · Encerramento</h3>
+      <div class="field field-full">
+        <label>Observações gerais (opcional)</label>
+        <textarea id="ata-obs" placeholder="Informes, avisos, data da próxima reunião..."></textarea>
+      </div>
+      <details id="previa-ata" class="mt-16">
+        <summary class="small" style="cursor:pointer;font-weight:600;">👁️ Ver como fica o texto da ATA</summary>
+        <pre id="ata-previa" class="ata-previa"></pre>
+      </details>
+    </div>
+
+    <div class="barra-salvar">
       <button id="btn-salvar-ata" class="btn btn-primary">💾 Salvar ATA</button>
+      <span class="small text-muted">O rascunho fica guardado neste computador enquanto você digita.</span>
     </div>
   </section>
 
@@ -130,7 +130,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="js/supabaseClient.js?v=2026102110"></script>
-<script src="js/acesso.js?v=3"></script>
-<script src="js/reunioes.js?v=2026102110"></script>
+<script src="js/acesso.js?v=4"></script>
+<script src="js/reunioes.js?v=2026102112"></script>
 </body>
 </html>

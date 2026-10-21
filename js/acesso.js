@@ -71,7 +71,7 @@ function abrirModalAcesso() {
     m.id = "modal-acesso";
     m.className = "modal-backdrop";
     document.body.appendChild(m);
-    m.addEventListener("click", (e) => e.target === m && (m.style.display = "none"));
+    // Fecha só pelo ✕ (clicar fora não fecha mais, para não perder o que foi digitado)
   }
   m.style.display = "flex";
   if (acesso.editor) return telaLogado(m);
@@ -135,7 +135,13 @@ function telaEntrar(m, modo = "entrar") {
       }
       const { error } = await supabaseClient.auth.signInWithPassword({ email: `${d}@${DOMINIO_ACESSO}`, password: senha });
       if (error) throw new Error(criar ? "Senha salva, mas não foi possível entrar. Tente entrar de novo." : "CPF ou senha incorretos.");
-      location.reload();
+      if (!criar) return location.reload();
+      m.innerHTML = `<div class="modal" style="max-width:400px;text-align:center;">
+        <h3 style="margin-top:0;">✅ Senha salva!</h3>
+        <p>Você já está conectada como líder. Use esta senha nos próximos acessos.</p>
+        <div class="row mt-16" style="justify-content:center;"><button class="btn btn-primary" id="ac-continuar">Continuar</button></div>
+      </div>`;
+      m.querySelector("#ac-continuar").onclick = () => location.reload();
     } catch (e) {
       erro.textContent = e.message;
       btn.disabled = false;

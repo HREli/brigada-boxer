@@ -773,3 +773,28 @@ body.leitura .detalhe-item, body.leitura .barra-linha { cursor: default; }
 .acesso-linha > div { flex: 1; }
 input[type=password] { width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: .9rem; font-family: inherit; background: #fff; color: var(--text); }
 input[type=password]:focus { outline: none; border-color: var(--navy-2); box-shadow: 0 0 0 3px rgba(31, 78, 121, 0.12); }
+
+/* ---------- Modo reunião (Reunião Geral) ---------- */
+.assunto { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin: 10px 0; background: #fff; }
+.assunto-cab { display: flex; align-items: flex-start; gap: 12px; }
+.assunto-num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--brand-red); color: #fff; font-weight: 800; font-size: .85rem; display: inline-flex; align-items: center; justify-content: center; }
+.assunto-titulo { flex: 1; font-size: .92rem; line-height: 1.4; }
+.assunto-titulo .badge { margin-right: 4px; }
+.assunto-chk { display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; font-weight: 600; color: var(--text-muted); }
+.assunto-chk input { width: 16px; height: 16px; }
+.assunto-corpo { margin-top: 12px; padding-left: 40px; }
+.assunto-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.assunto-campos textarea { min-height: 64px; resize: vertical; }
+.as-acoes .acao-row { margin: 10px 0 0; padding: 10px; }
+.btn-as-acao { margin-top: 10px; }
+.assunto.nao-tratado { background: #f7f7f7; opacity: .7; }
+.assunto.nao-tratado .assunto-corpo { display: none; }
+.assunto.nao-tratado .assunto-num { background: #bbb; }
+.assunto-novo { border-style: dashed; }
+.ata-previa { white-space: pre-wrap; font-family: inherit; font-size: .84rem; line-height: 1.5; background: #fafafa; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 10px; }
+.barra-salvar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-top: 8px; box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
+@media (max-width: 720px) {
+  .assunto-campos { grid-template-columns: 1fr; }
+  .assunto-corpo { padding-left: 0; }
+  .assunto-cab { flex-wrap: wrap; }
+}
