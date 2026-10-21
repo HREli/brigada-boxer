@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=2026102114" />
+<link rel="stylesheet" href="css/style.css?v=2026102115" />
 </head>
 <body>
 <header class="topbar">
@@ -48,9 +48,9 @@
 
   <div class="indicators" id="resumo-ano"></div>
 
-  <p class="text-muted small">Regra: <b>Reunião Geral</b> na 3ª quarta-feira do mês. <b>Reunião de Líderes</b> a combinar, de 7 a 10 dias antes da Geral (pode não acontecer em alguns meses). Use <b>✏️</b> para remarcar ou marcar exceções. Clique nos números de presentes/ausentes para ver os nomes.</p>
+  <p class="text-muted small">Regra: <b>Reunião Geral</b> na 3ª quarta-feira do mês. <b>Reunião de Líderes</b> a combinar, de 7 a 10 dias antes da Geral (pode não acontecer em alguns meses). Use <b>✏️</b> para remarcar ou marcar exceções. A caixinha <b>Realizada</b> é marcada sozinha quando a ATA é registrada no sistema; se a reunião aconteceu sem ATA, marque-a você. Clique nos números de presentes/ausentes para ver os nomes.</p>
 
-  <div id="meses" class="meses-grid"></div>
+  <div id="meses" class="panel" style="padding:0;"></div>
 </div>
 
 <!-- Modal de edição -->
@@ -64,6 +64,7 @@
       <label>Situação</label>
       <select id="ag-situacao">
         <option value="Agendada">Agendada</option>
+        <option value="Realizada">Realizada (sem ATA no sistema)</option>
         <option value="Realizada">Realizada (registro fora do sistema)</option>
         <option value="Não necessária">Não haverá (não necessária)</option>
         <option value="Cancelada">Cancelada</option>
@@ -88,6 +89,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/supabaseClient.js?v=2026102110"></script>
 <script src="js/acesso.js?v=4"></script>
-<script src="js/calendario.js?v=2026102110"></script>
+<script src="js/calendario.js?v=2026102115"></script>
 </body>
 </html>
