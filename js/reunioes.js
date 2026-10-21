@@ -163,7 +163,7 @@ function coletarAcoes() {
     if (!descricao && !responsavel && !prazo) return;
     if (!descricao) return erros.push(`${rotulo}: falta a descrição.`);
     if (encaminhamento !== "Pauta Geral" && (!responsavel || !prazo)) return erros.push(`${rotulo}: informe responsável e prazo.`);
-    itens.push({ descricao, responsavel: responsavel || null, prazo: prazo || null, encaminhamento, tema, pautaId: row.dataset.pautaId || null });
+    itens.push({ descricao, responsavel: responsavel || null, prazo: prazo || null, encaminhamento, tema, pautaId: row.dataset.pautaId || null, row });
   });
   return { itens, erros };
 }
@@ -171,13 +171,15 @@ function coletarAcoes() {
 // ---------------- Itens vindos dos líderes (só na Geral) ----------------
 async function carregarItensLideres() {
   if (!CONFIGURADO) return;
-  const { data, error } = await supabaseClient
+  let consulta = supabaseClient
     .from("acoes")
     .select("*, ata:atas!acoes_ata_id_fkey(data_reuniao)")
     .eq("origem", "Reunião de Líderes")
-    .in("encaminhamento", ["Pauta Geral", "Ação Geral"])
-    .is("ata_geral_id", null)
-    .order("created_at");
+    .in("encaminhamento", ["Pauta Geral", "Ação Geral"]);
+  // Editando uma ATA já salva: mostra também os itens que já estão vinculados a ela
+  const editId = MODO_REUNIAO && rascunho && rascunho.editId;
+  consulta = editId ? consulta.or(`ata_geral_id.is.null,ata_geral_id.eq.${editId}`) : consulta.is("ata_geral_id", null);
+  const { data, error } = await consulta.order("created_at");
   if (error) {
     console.error(error);
     return;
@@ -255,6 +257,7 @@ async function salvarAta() {
 
   const { itens, erros } = coletarAcoes();
   if (erros.length) return showToast(erros[0], "error");
+  if (MODO_REUNIAO && rascunho && rascunho.editId) return salvarEdicaoAta(data_reuniao, conteudo, itens);
   const vinculados = TIPO === "Geral" ? itensLideresSelecionados() : [];
 
   const btn = document.getElementById("btn-salvar-ata");
@@ -276,8 +279,13 @@ async function salvarAta() {
         encaminhamento: a.encaminhamento,
         tema: a.tema,
       }));
-      const { error } = await supabaseClient.from("acoes").insert(payload);
+      const { data: novas, error } = await supabaseClient.from("acoes").insert(payload).select("id");
       if (error) throw error;
+      (novas || []).forEach((n, k) => itens[k] && itens[k].row && (itens[k].row.dataset.acaoId = n.id));
+    }
+    if (MODO_REUNIAO) {
+      const { error } = await supabaseClient.from("atas").update({ registro: registroAtual() }).eq("id", ata.id);
+      if (error) console.error(error);
     }
 
     if (vinculados.length) {
@@ -378,6 +386,7 @@ async function carregarHistorico() {
         resumo = `${doAta.length} item(ns)` + (pend ? ` · <span class="badge badge-warn">${pend} aguardando Reunião Geral</span>` : "");
       }
       resumo += resumoPresenca;
+      if (MODO_REUNIAO) botoes = `<button class="btn btn-primary btn-editar-ata" data-id="${ata.id}">✏️ Editar</button>` + botoes;
       botoes += `<button class="btn btn-secondary btn-excluir-ata" data-id="${ata.id}" title="Excluir">🗑️</button>`;
 
       doAta.sort((a, b) => ordemTema(a.tema) - ordemTema(b.tema));
@@ -426,6 +435,7 @@ async function carregarHistorico() {
     container.querySelectorAll(".btn-gerar-pdf").forEach((b) => b.addEventListener("click", () => gerarPdfAta(b.dataset.id)));
     container.querySelectorAll(".input-upload-assinada").forEach((i) => i.addEventListener("change", (e) => anexarAtaAssinada(e, i.dataset.id)));
     container.querySelectorAll(".btn-excluir-ata").forEach((b) => b.addEventListener("click", () => excluirAta(b.dataset.id)));
+    container.querySelectorAll(".btn-editar-ata").forEach((b) => b.addEventListener("click", () => editarAta(b.dataset.id)));
     container.querySelectorAll(".sel-encaminhamento").forEach((s) => s.addEventListener("change", () => alterarEncaminhamento(s)));
     container.querySelectorAll(".btn-presenca").forEach((b) => b.addEventListener("click", () => abrirPresenca(b.dataset.id)));
     container.querySelectorAll(".btn-salvar-presenca").forEach((b) => b.addEventListener("click", () => salvarPresenca(b.dataset.id, b)));
@@ -669,6 +679,7 @@ function iniciarModoReuniao() {
     carregarItensLideres();
   });
   autoAltura(document.getElementById("ata-obs"));
+  mostrarAvisoEdicao();
   if (rascunho) mostrarStatusRascunho("📝 Rascunho recuperado (" + horaDe(rascunho.ts) + ")");
 }
 
@@ -702,7 +713,7 @@ function renderOrdemDia() {
           <b>${escHtml(i.descricao)}</b>
           <div class="small text-muted">${meta}</div>
         </div>
-        <label class="assunto-chk small"><input type="checkbox" class="chk-item-lider" data-id="${i.id}" ${r.chk === false ? "" : "checked"} /> tratado</label>
+        <label class="assunto-chk small"><input type="checkbox" class="chk-item-lider" data-id="${i.id}" ${(r.chk === undefined ? !(rascunho && rascunho.editId) : r.chk) ? "checked" : ""} /> tratado</label>
       </div>
       ${corpoAssunto(r)}`;
     cont.appendChild(card);
@@ -749,6 +760,7 @@ function adicionarAcaoNoAssunto(card, a = {}) {
   row.querySelector(".acao-descricao").value = a.d || "";
   row.querySelector(".acao-responsavel").value = a.r || "";
   row.querySelector(".acao-prazo").value = a.p || "";
+  if (a.id) row.dataset.acaoId = a.id;
   row.querySelector(".btn-remove-acao").addEventListener("click", () => {
     row.remove();
     salvarRascunhoDepois();
@@ -800,7 +812,7 @@ function dadosAssunto(c) {
     disc: c.querySelector(".as-disc").value,
     dec: c.querySelector(".as-dec").value,
     acoes: [...c.querySelectorAll(".acao-row")]
-      .map((r) => ({ d: r.querySelector(".acao-descricao").value, r: r.querySelector(".acao-responsavel").value, p: r.querySelector(".acao-prazo").value }))
+      .map((r) => ({ id: r.dataset.acaoId || undefined, d: r.querySelector(".acao-descricao").value, r: r.querySelector(".acao-responsavel").value, p: r.querySelector(".acao-prazo").value }))
       .filter((a) => a.d || a.r || a.p),
   };
 }
@@ -881,6 +893,7 @@ function salvarRascunho() {
     ...dadosAssunto(c),
   }));
   rascunho = {
+    ...(rascunho && rascunho.editId ? { editId: rascunho.editId, editData: rascunho.editData, acoesOriginais: rascunho.acoesOriginais || [] } : {}),
     ts: Date.now(),
     data: document.getElementById("ata-data").value,
     obs: document.getElementById("ata-obs").value,
@@ -908,6 +921,7 @@ function limparModoReuniao() {
   document.getElementById("ata-data").value = hojeISOLocal();
   document.getElementById("previa-ata").open = false;
   mostrarStatusRascunho("");
+  mostrarAvisoEdicao();
 }
 
 function mostrarStatusRascunho(t) {
@@ -925,4 +939,189 @@ function autoAltura(t) {
   if (!t) return;
   t.style.height = "auto";
   t.style.height = Math.max(64, t.scrollHeight + 2) + "px";
+}
+
+// ---------------- Editar uma ATA já salva (modo reunião) ----------------
+function registroAtual() {
+  const cards = {};
+  document.querySelectorAll("#ordem-dia .assunto").forEach((c) => (cards[c.dataset.id] = { chk: c.querySelector(".chk-item-lider").checked, ...dadosAssunto(c) }));
+  const novos = [...document.querySelectorAll("#novos-assuntos .assunto")].map((c) => ({ titulo: c.querySelector(".as-titulo").value, tema: c.querySelector(".as-tema").value, ...dadosAssunto(c) }));
+  return { cards, novos, obs: document.getElementById("ata-obs").value };
+}
+
+function mostrarAvisoEdicao() {
+  let av = document.getElementById("aviso-edicao");
+  const editando = rascunho && rascunho.editId;
+  const btn = document.getElementById("btn-salvar-ata");
+  btn.textContent = editando ? "💾 Salvar alterações" : "💾 Salvar ATA";
+  if (!editando) return av && av.remove();
+  if (!av) {
+    av = document.createElement("div");
+    av.id = "aviso-edicao";
+    av.className = "aviso-edicao";
+    document.getElementById("tab-nova").prepend(av);
+  }
+  av.innerHTML = `✏️ Você está <b>editando a ATA de ${formatarDataBR(rascunho.editData)}</b>, que já foi salva. As alterações só valem quando você clicar em <b>Salvar alterações</b>.
+    <button type="button" class="btn btn-secondary" id="btn-cancelar-edicao">Cancelar edição</button>`;
+  av.querySelector("#btn-cancelar-edicao").addEventListener("click", () => {
+    if (!confirm("Descartar as alterações e sair da edição? A ATA salva continua como estava.")) return;
+    limparModoReuniao();
+    location.reload();
+  });
+}
+
+async function editarAta(ataId) {
+  const ata = cacheHistorico.atas.find((a) => a.id === ataId);
+  if (!ata) return;
+  if (rascunho && rascunho.editId !== ataId) {
+    const msg = rascunho.editId ? "Você está editando outra ATA. Descartar essas alterações e abrir esta?" : "Há um rascunho de nova reunião em andamento. Ele será substituído pela ATA que você quer editar. Continuar?";
+    if (!confirm(msg)) return;
+  }
+  if (!(rascunho && rascunho.editId === ataId)) {
+    const reg = ata.registro || registroDeConteudo(ata);
+    // traz responsável e prazo atualizados (podem ter mudado no Plano de Ação)
+    const ids = [...Object.values(reg.cards || {}), ...(reg.novos || [])].flatMap((c) => (c.acoes || []).map((a) => a.id)).filter(Boolean);
+    if (ids.length) {
+      const { data: atuais } = await supabaseClient.from("acoes").select("id,descricao,responsavel,prazo").in("id", ids);
+      const mapa = Object.fromEntries((atuais || []).map((a) => [a.id, a]));
+      [...Object.values(reg.cards || {}), ...(reg.novos || [])].forEach((c) => {
+        c.acoes = (c.acoes || []).filter((a) => !a.id || mapa[a.id]).map((a) => (a.id ? { id: a.id, d: mapa[a.id].descricao, r: mapa[a.id].responsavel || "", p: mapa[a.id].prazo || "" } : a));
+      });
+    }
+    const presenca = {};
+    cacheHistorico.presenca.filter((p) => p.ata_id === ataId).forEach((p) => (presenca[p.brigadista_id] = { presente: p.presente, justificativa: p.justificativa || "" }));
+    rascunho = {
+      editId: ataId,
+      editData: ata.data_reuniao,
+      acoesOriginais: ids.filter((id) => [...Object.values(reg.cards || {}), ...(reg.novos || [])].some((c) => (c.acoes || []).some((a) => a.id === id))),
+      ts: Date.now(),
+      data: ata.data_reuniao,
+      obs: reg.obs || "",
+      presenca,
+      cards: reg.cards || {},
+      novos: reg.novos || [],
+    };
+    try {
+      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(rascunho));
+    } catch (e) {
+      return showToast("Este navegador não permitiu abrir a edição.", "error");
+    }
+  }
+  location.reload();
+}
+
+// ATAs salvas antes do registro estruturado: reconstrói os cartões a partir do texto
+function registroDeConteudo(ata) {
+  const linhas = (ata.conteudo || "").split("\n");
+  const vinculados = cacheHistorico.acoes.filter((a) => a.ata_geral_id === ata.id);
+  const proprias = cacheHistorico.acoes.filter((a) => a.ata_id === ata.id);
+  const reg = { cards: {}, novos: [], obs: "" };
+  vinculados.forEach((v) => (reg.cards[v.id] = { chk: true, disc: "", dec: "", acoes: [] }));
+  let atual = null;
+  let campo = null;
+  let secao = "";
+  linhas.forEach((l) => {
+    if (/^(ORDEM DO DIA|OUTROS ASSUNTOS|OBSERVAÇÕES GERAIS)/.test(l)) {
+      secao = l.startsWith("OBSERVAÇÕES") ? "obs" : "";
+      atual = null;
+      return;
+    }
+    if (secao === "obs") return (reg.obs += (reg.obs ? "\n" : "") + l);
+    const m = l.match(/^\d+\. (.*)$/);
+    if (m) {
+      const v = vinculados.find((x) => m[1].startsWith(x.descricao));
+      if (v) atual = reg.cards[v.id];
+      else {
+        const t = m[1].match(/^(.*) \[(.+)\]$/);
+        atual = { titulo: t ? t[1] : m[1], tema: t ? t[2] : "Outros", disc: "", dec: "", acoes: [] };
+        reg.novos.push(atual);
+      }
+      campo = null;
+      return;
+    }
+    if (!atual) return;
+    let k;
+    if ((k = l.match(/^\s+Discussão: ?(.*)$/))) return ((campo = "disc"), (atual.disc = k[1]));
+    if ((k = l.match(/^\s+Decisão: ?(.*)$/))) return ((campo = "dec"), (atual.dec = k[1]));
+    if ((k = l.match(/^\s+• Ação: (.*)$/))) {
+      campo = null;
+      const txt = k[1];
+      const a = proprias.find((x) => txt.startsWith(x.descricao));
+      atual.acoes.push(a ? { id: a.id, d: a.descricao, r: a.responsavel || "", p: a.prazo || "" } : { d: txt.split(" — ")[0], r: "", p: "" });
+      return;
+    }
+    if (campo && /^\s{6}/.test(l)) atual[campo] += "\n" + l.trim();
+  });
+  reg.obs = reg.obs.trim();
+  return reg;
+}
+
+async function salvarEdicaoAta(data_reuniao, conteudo, itens) {
+  const ataId = rascunho.editId;
+  const btn = document.getElementById("btn-salvar-ata");
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+  try {
+    const hoje = hojeISOLocal();
+    // ações: atualiza as existentes, cria as novas e remove as que foram apagadas
+    for (const a of itens) {
+      const campos = { descricao: a.descricao, responsavel: a.responsavel, prazo: a.prazo, tema: a.tema };
+      if (a.row.dataset.acaoId) {
+        const { error } = await supabaseClient.from("acoes").update(campos).eq("id", a.row.dataset.acaoId);
+        if (error) throw error;
+      } else {
+        const { data: nova, error } = await supabaseClient
+          .from("acoes")
+          .insert({ ...campos, ata_id: ataId, origem: ORIGEM, encaminhamento: null, status: a.prazo && a.prazo < hoje ? "Atrasada" : "Em andamento" })
+          .select("id")
+          .single();
+        if (error) throw error;
+        a.row.dataset.acaoId = nova.id;
+      }
+    }
+    const mantidas = itens.map((a) => a.row.dataset.acaoId);
+    const removidas = (rascunho.acoesOriginais || []).filter((id) => !mantidas.includes(id));
+    if (removidas.length) {
+      const { error } = await supabaseClient.from("acoes").delete().in("id", removidas);
+      if (error) throw error;
+    }
+    // itens dos líderes: marcados ficam vinculados a esta ATA; desmarcados voltam a ficar pendentes
+    const marcados = [...document.querySelectorAll("#ordem-dia .chk-item-lider")];
+    const sim = marcados.filter((c) => c.checked).map((c) => c.dataset.id);
+    const nao = marcados.filter((c) => !c.checked).map((c) => c.dataset.id);
+    if (sim.length) {
+      const { error } = await supabaseClient.from("acoes").update({ ata_geral_id: ataId }).in("id", sim);
+      if (error) throw error;
+    }
+    if (nao.length) {
+      const { error } = await supabaseClient.from("acoes").update({ ata_geral_id: null }).in("id", nao).eq("ata_geral_id", ataId);
+      if (error) throw error;
+    }
+    // presença
+    const { data: linhas, error: ePres } = await supabaseClient.from("ata_assinaturas").select("id, brigadista_id").eq("ata_id", ataId);
+    if (ePres) throw ePres;
+    for (const b of convidados()) {
+      const e = presencaNova[b.id] || { presente: true, justificativa: "" };
+      const valores = { presente: e.presente, justificativa: e.presente ? null : (e.justificativa || "").trim() || null };
+      const linha = (linhas || []).find((l) => l.brigadista_id === b.id);
+      const { error } = linha
+        ? await supabaseClient.from("ata_assinaturas").update(valores).eq("id", linha.id)
+        : await supabaseClient.from("ata_assinaturas").insert({ ata_id: ataId, brigadista_id: b.id, assinado: false, ...valores });
+      if (error) throw error;
+    }
+    const { error: eAta } = await supabaseClient.from("atas").update({ data_reuniao, conteudo, registro: registroAtual() }).eq("id", ataId);
+    if (eAta) throw eAta;
+
+    showToast("Alterações da ATA salvas!", "success");
+    limparModoReuniao();
+    carregarBrigadistas();
+    carregarItensLideres();
+    document.querySelector('.tab-btn[data-tab="historico"]').click();
+  } catch (err) {
+    console.error(err);
+    showToast("Erro ao salvar alterações: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    if (rascunho && rascunho.editId) btn.textContent = "💾 Salvar alterações";
+  }
 }
