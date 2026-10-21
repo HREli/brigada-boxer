@@ -109,8 +109,9 @@ function renderPresenca(container, pessoas, estado, resumoEl) {
   atualizarResumo();
 }
 
+// Reunião de Líderes: participam o coordenador e os líderes de andar
 function lideresAtivos() {
-  return brigadistasAtivos.filter((b) => b.cargo === "Coordenador" || b.cargo === "Líder de Área");
+  return brigadistasAtivos.filter((b) => b.cargo === "Coordenador" || normalizarNome(b.funcao).includes("LIDER DE ANDAR"));
 }
 
 // ---------------- Linhas de ação ----------------

@@ -124,6 +124,20 @@ function renderDetalhe() {
   }
   const { titulo, f } = filtroDetalhe(detalheAberto);
   const lista = pessoas.filter(f).sort((a, b) => a.nome.localeCompare(b.nome));
+  // Agrupa: "No prédio" por andar; andares por setor; demais por localização/empresa
+  const chaveGrupo =
+    detalheAberto === "predio"
+      ? (p) => normalizarLocal(p.localizacao)
+      : ORDEM_ANDARES.includes(detalheAberto) || detalheAberto.endsWith("ANDAR")
+      ? setorDe
+      : detalheAberto === "terceiros"
+      ? (p) => p.empresa || "-"
+      : (p) => normalizarLocal(p.localizacao) || "Sem localização";
+  const grupos = {};
+  lista.forEach((p) => (grupos[chaveGrupo(p)] = grupos[chaveGrupo(p)] || []).push(p));
+  const ordem = Object.keys(grupos).sort((a, b) =>
+    detalheAberto === "predio" ? andaresPresentes().indexOf(a) - andaresPresentes().indexOf(b) : grupos[b].length - grupos[a].length || a.localeCompare(b)
+  );
   painel.style.display = "block";
   painel.innerHTML = `
     <div class="row justify-between mb-16">
@@ -132,14 +146,25 @@ function renderDetalhe() {
     </div>
     ${
       lista.length
-        ? `<div class="detalhe-grid">${lista
+        ? ordem
             .map(
-              (p) => `<div class="detalhe-item" style="cursor:default;">
-              <div><b>${eBrigadista(p) ? "🔥 " : ""}${escHtml(p.nome)}</b>
-                <div class="small text-muted">${escHtml([p.departamento || p.area, normalizarLocal(p.localizacao), eTerceiro(p) ? p.empresa : ""].filter(Boolean).join(" · "))}</div>
-              </div></div>`
+              (g) => `<div class="detalhe-grupo">
+          <div class="detalhe-grupo-cab"><span>${escHtml(g)}</span><b>${grupos[g].length}</b></div>
+          <div class="detalhe-grid">${grupos[g]
+            .map(
+              (p) => `<div class="detalhe-item ${eBrigadista(p) ? "brig" : ""}" style="cursor:default;">
+                <div class="detalhe-avatar">${eBrigadista(p) ? "🔥" : escHtml(p.nome.trim().charAt(0))}</div>
+                <div class="detalhe-texto"><b>${escHtml(p.nome)}</b>
+                  <span>${escHtml(
+                    [chaveGrupo === setorDe ? "" : setorDe(p), eTerceiro(p) ? p.empresa : p.vinculo, eBrigadista(p) ? "Brigadista" : ""].filter(Boolean).join(" · ")
+                  )}</span>
+                </div>
+              </div>`
             )
-            .join("")}</div>`
+            .join("")}</div>
+        </div>`
+            )
+            .join("")
         : '<div class="empty-state small" style="padding:16px;">Ninguém nesta lista.</div>'
     }`;
   document.getElementById("btn-fechar-detalhe").addEventListener("click", () => {
@@ -156,11 +181,14 @@ function andaresPresentes() {
 // Nome do setor padronizado (ignora diferenças de maiúsculas/acentos, ex.: "EXpedição")
 const _rotuloSetor = {};
 function setorDe(p) {
-  const bruto = eTerceiro(p) ? `Terceiros (${p.empresa || "-"})` : p.departamento || p.area || "Sem setor";
+  // Terceiros: usa a área (ex.: Limpeza, Refeitório); demais: departamento
+  const bruto = eTerceiro(p) ? p.area || p.departamento || `Terceiros (${p.empresa || "-"})` : p.departamento || p.area || "Sem setor";
   const k = normalizarNome(bruto);
   if (!_rotuloSetor[k] || /^[A-ZÀ-Ú][a-zà-ú]/.test(bruto)) _rotuloSetor[k] = _rotuloSetor[k] && !/^[A-ZÀ-Ú][a-zà-ú]/.test(_rotuloSetor[k]) ? bruto : _rotuloSetor[k] || bruto;
   return _rotuloSetor[k];
 }
+
+const ICONE_ANDAR = { "TÉRREO": "T", "1º ANDAR": "1º", "2º ANDAR": "2º" };
 
 function renderAndares() {
   const cont = document.getElementById("andares-container");
@@ -168,36 +196,52 @@ function renderAndares() {
     cont.innerHTML = '<div class="empty-state">Importe a lista de colaboradores para ver a distribuição.</div>';
     return;
   }
-  cont.innerHTML = andaresPresentes()
+  const totalPredio = pessoas.filter((p) => !foraDoPredio(p)).length || 1;
+  cont.innerHTML = `<div class="andares-grid">${andaresPresentes()
     .map((andar) => {
       const doAndar = pessoas.filter((p) => normalizarLocal(p.localizacao) === andar);
       if (!doAndar.length) return "";
       const porSetor = {};
       doAndar.forEach((p) => (porSetor[setorDe(p)] = porSetor[setorDe(p)] || []).push(p));
       const brig = doAndar.filter(eBrigadista).length;
-      return `<div class="andar-bloco">
-        <div class="andar-cab">
-          <h4>${escHtml(andar)}</h4>
-          <span class="andar-total">${doAndar.length} pessoa(s)</span>
-          <span class="small text-muted">· ${brig} brigadista(s)</span>
-        </div>
-        <div class="setores-grid">
+      const maior = Math.max(...Object.values(porSetor).map((ps) => ps.length));
+      const pct = Math.round((doAndar.length / totalPredio) * 100);
+      return `<section class="andar-card">
+        <header class="andar-head">
+          <div class="andar-icone">${escHtml(ICONE_ANDAR[andar] || andar.slice(0, 2))}</div>
+          <div class="andar-info">
+            <h4>${escHtml(andar.charAt(0) + andar.slice(1).toLowerCase())}</h4>
+            <div class="andar-sub">${Object.keys(porSetor).length} setor(es) · ${pct}% do prédio</div>
+          </div>
+          <div class="andar-numeros">
+            <div class="andar-num"><b>${doAndar.length}</b><span>pessoas</span></div>
+            <div class="andar-num brig"><b>${brig}</b><span>🔥 brigadistas</span></div>
+          </div>
+        </header>
+        <div class="setor-lista">
           ${Object.entries(porSetor)
             .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-            .map(
-              ([setor, ps]) => `<details class="setor-card">
-                <summary><span>${escHtml(setor)}</span><b>${ps.length}</b></summary>
-                <ul>${ps
+            .map(([setor, ps]) => {
+              const nb = ps.filter(eBrigadista).length;
+              const terc = ps.every(eTerceiro);
+              return `<details class="setor-row">
+                <summary>
+                  <span class="setor-nome">${escHtml(setor)}${terc ? ' <span class="tag-terceiro">terceiro</span>' : ""}</span>
+                  <span class="setor-barra"><i style="width:${Math.max(6, (ps.length / maior) * 100)}%"></i></span>
+                  <span class="setor-qtd">${ps.length}</span>
+                  <span class="setor-brig" title="Brigadistas neste setor">${nb ? "🔥" + nb : ""}</span>
+                </summary>
+                <div class="setor-pessoas">${ps
                   .sort((a, b) => a.nome.localeCompare(b.nome))
-                  .map((p) => `<li>${eBrigadista(p) ? "🔥 " : ""}${escHtml(p.nome)}</li>`)
-                  .join("")}</ul>
-              </details>`
-            )
+                  .map((p) => `<span class="pessoa-chip ${eBrigadista(p) ? "brig" : ""}">${eBrigadista(p) ? "🔥 " : ""}${escHtml(p.nome)}</span>`)
+                  .join("")}</div>
+              </details>`;
+            })
             .join("")}
         </div>
-      </div>`;
+      </section>`;
     })
-    .join("");
+    .join("")}</div>`;
 }
 
 function renderLista() {
@@ -297,7 +341,20 @@ async function lerPlanilhaPop(e) {
         return o;
       })
       .filter((o) => o.nome);
-    importPop = { registros, arquivo: file.name };
+    // Linhas idênticas repetidas (mesmo nome, empresa e local) são consideradas duplicadas
+    const vistos = new Set();
+    const duplicadas = [];
+    const unicos = registros.filter((r) => {
+      const k = [normalizarNome(r.nome), normalizarNome(r.empresa), r.localizacao].join("|");
+      if (vistos.has(k)) {
+        duplicadas.push(r.nome);
+        return false;
+      }
+      vistos.add(k);
+      return true;
+    });
+    unicos.forEach(aplicarPadraoTerceiros);
+    importPop = { registros: unicos, duplicadas, arquivo: file.name };
     renderPrevia();
   } catch (err) {
     console.error(err);
@@ -305,8 +362,21 @@ async function lerPlanilhaPop(e) {
   }
 }
 
+// Área/departamento padrão para terceiros sem esses dados
+const PADRAO_TERCEIROS = [
+  { teste: (r) => /AEXECUTIVA|LIMPEZA/i.test(r.empresa + " " + r.vinculo), area: "Limpeza", departamento: "Geral" },
+  { teste: (r) => /PRATO FINO|REFEIT|RESTAURANTE|COZINHA/i.test(r.empresa + " " + r.vinculo), area: "Refeitório", departamento: "Refeitório" },
+];
+function aplicarPadraoTerceiros(r) {
+  if (!eTerceiro(r) || (r.area && r.departamento)) return;
+  const regra = PADRAO_TERCEIROS.find((x) => x.teste(r));
+  if (!regra) return;
+  r.area = r.area || regra.area;
+  r.departamento = r.departamento || regra.departamento;
+}
+
 function renderPrevia() {
-  const { registros } = importPop;
+  const { registros, duplicadas } = importPop;
   const antes = new Set(pessoas.map((p) => normalizarNome(p.nome)));
   const depois = new Set(registros.map((p) => normalizarNome(p.nome)));
   const entraram = registros.filter((p) => !antes.has(normalizarNome(p.nome)));
@@ -328,7 +398,8 @@ function renderPrevia() {
       ${pessoas.length ? `<div class="previa-item ok"><b>${entraram.length}</b> entraram<div class="small text-muted">${lista(entraram.map((p) => p.nome))}</div></div>` : ""}
       ${pessoas.length ? `<div class="previa-item danger"><b>${sairam.length}</b> saíram<div class="small text-muted">${lista(sairam.map((p) => p.nome))}</div></div>` : ""}
     </div>
-    ${repetidos.length ? `<div class="config-warning mt-16"><b>Nomes repetidos na planilha</b> (confira se não é erro de digitação): ${lista(repetidos)}</div>` : ""}
+    ${duplicadas.length ? `<div class="info-lista mt-16">Linhas duplicadas removidas automaticamente: ${lista(duplicadas)}</div>` : ""}
+    ${repetidos.length ? `<div class="config-warning mt-16"><b>Mesmo nome em empresas/andares diferentes</b> (confira): ${lista(repetidos)}</div>` : ""}
     ${semLocal.length ? `<div class="config-warning mt-16"><b>Sem localização</b> (não entram na contagem do prédio): ${lista(semLocal)}</div>` : ""}
     ${brigFora.length ? `<div class="config-warning mt-16"><b>Brigadistas que não estão na lista nova</b> — se saíram da empresa, inative-os em Colaboradores e Brigadistas: ${lista(brigFora)}</div>` : ""}
   `;
