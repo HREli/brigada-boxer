@@ -120,6 +120,7 @@ function adicionarLinhaAcao(pre = {}) {
   const clone = tpl.content.cloneNode(true);
   const row = clone.querySelector(".acao-row");
   if (TIPO === "Lideres") row.querySelector(".campo-encaminhamento").style.display = "block";
+  row.querySelector(".acao-tema").innerHTML = opcoesTema(pre.tema);
   if (pre.descricao) row.querySelector(".acao-descricao").value = pre.descricao;
   if (pre.responsavel) row.querySelector(".acao-responsavel").value = pre.responsavel;
   if (pre.prazo) row.querySelector(".acao-prazo").value = pre.prazo;
@@ -145,10 +146,11 @@ function coletarAcoes() {
     const responsavel = row.querySelector(".acao-responsavel").value.trim();
     const prazo = row.querySelector(".acao-prazo").value;
     const encaminhamento = TIPO === "Lideres" ? row.querySelector(".acao-encaminhamento").value : null;
+    const tema = row.querySelector(".acao-tema").value || "Outros";
     if (!descricao && !responsavel && !prazo) return;
     if (!descricao) return erros.push(`Item ${i + 1}: falta a descrição.`);
     if (encaminhamento !== "Pauta Geral" && (!responsavel || !prazo)) return erros.push(`Item ${i + 1}: informe responsável e prazo.`);
-    itens.push({ descricao, responsavel: responsavel || null, prazo: prazo || null, encaminhamento, pautaId: row.dataset.pautaId || null });
+    itens.push({ descricao, responsavel: responsavel || null, prazo: prazo || null, encaminhamento, tema, pautaId: row.dataset.pautaId || null });
   });
   return { itens, erros };
 }
@@ -175,10 +177,13 @@ function renderItensLideres() {
   const lista = document.getElementById("vindos-lideres-lista");
   document.getElementById("vindos-lideres-empty").style.display = itensLideresPendentes.length ? "none" : "block";
   document.getElementById("btn-inserir-pautas").style.display = itensLideresPendentes.length ? "inline-flex" : "none";
+  itensLideresPendentes.sort((a, b) => ordemTema(a.tema) - ordemTema(b.tema) || (a.prazo || "9").localeCompare(b.prazo || "9"));
+  let temaAtual = null;
   lista.innerHTML = itensLideresPendentes
     .map((i) => {
       const ePauta = i.encaminhamento === "Pauta Geral";
-      return `<label class="item-lider">
+      const cab = i.tema !== temaAtual ? `<div class="tema-cab">${escHtml((temaAtual = i.tema))}</div>` : "";
+      return `${cab}<label class="item-lider">
         <input type="checkbox" class="chk-item-lider" data-id="${i.id}" checked />
         <span class="badge ${ePauta ? "badge-brigada" : "badge-warn"}">${ePauta ? "Pauta" : "Ação"}</span>
         <span class="item-lider-texto"><b>${escHtml(i.descricao)}</b>
@@ -193,7 +198,7 @@ function renderItensLideres() {
       e.preventDefault();
       const item = itensLideresPendentes.find((x) => x.id === b.dataset.id);
       lista.querySelector(`.chk-item-lider[data-id="${item.id}"]`).checked = true;
-      adicionarLinhaAcao({ descricao: item.descricao, responsavel: item.responsavel, prazo: item.prazo, pautaId: item.id });
+      adicionarLinhaAcao({ descricao: item.descricao, responsavel: item.responsavel, prazo: item.prazo, tema: item.tema, pautaId: item.id });
       showToast("Pauta adicionada como ação. Complete responsável e prazo.", "success");
     })
   );
@@ -205,18 +210,22 @@ function itensLideresSelecionados() {
 }
 
 function inserirPautasNoConteudo() {
-  const itens = itensLideresSelecionados();
+  const itens = itensLideresSelecionados().sort((a, b) => ordemTema(a.tema) - ordemTema(b.tema));
   if (!itens.length) return showToast("Nenhum item marcado.", "error");
   const ta = document.getElementById("ata-conteudo");
-  const bloco =
-    "PAUTA (trazida da Reunião de Líderes):\n\n" +
-    itens
-      .map(
-        (p, i) =>
-          `${i + 1}. ${p.descricao}${p.encaminhamento === "Ação Geral" && p.responsavel ? ` (responsável: ${p.responsavel}${p.prazo ? ", prazo " + formatarDataBR(p.prazo) : ""})` : ""}\n   Discussão: \n   Decisão: `
-      )
-      .join("\n\n") +
-    "\n\nOUTROS ASSUNTOS:\n- \n";
+  let n = 0;
+  const blocos = TEMAS.filter((t) => itens.some((i) => i.tema === t)).map(
+    (t) =>
+      `${t.toUpperCase()}\n\n` +
+      itens
+        .filter((i) => i.tema === t)
+        .map(
+          (p) =>
+            `${++n}. ${p.descricao}${p.encaminhamento === "Ação Geral" && p.responsavel ? ` (responsável: ${p.responsavel}${p.prazo ? ", prazo " + formatarDataBR(p.prazo) : ""})` : ""}\n   Discussão: \n   Decisão: `
+        )
+        .join("\n\n")
+  );
+  const bloco = "PAUTA (trazida da Reunião de Líderes)\n\n" + blocos.join("\n\n") + "\n\nOUTROS ASSUNTOS\n- \n";
   ta.value = (ta.value ? ta.value.trimEnd() + "\n\n" : "") + bloco;
   ta.focus();
 }
@@ -249,6 +258,7 @@ async function salvarAta() {
         status: a.prazo && a.prazo < hoje ? "Atrasada" : "Em andamento",
         origem: ORIGEM,
         encaminhamento: a.encaminhamento,
+        tema: a.tema,
       }));
       const { error } = await supabaseClient.from("acoes").insert(payload);
       if (error) throw error;
@@ -351,6 +361,8 @@ async function carregarHistorico() {
       resumo += resumoPresenca;
       botoes += `<button class="btn btn-secondary btn-excluir-ata" data-id="${ata.id}" title="Excluir">🗑️</button>`;
 
+      doAta.sort((a, b) => ordemTema(a.tema) - ordemTema(b.tema));
+      trazidos.sort((a, b) => ordemTema(a.tema) - ordemTema(b.tema));
       const linhasItens = doAta
         .map((a) => {
           let enc = "";
@@ -490,8 +502,9 @@ async function excluirAta(ataId) {
 async function gerarPdfAta(ataId) {
   const ata = cacheHistorico.atas.find((a) => a.id === ataId);
   if (!ata) return;
-  const doAta = cacheHistorico.acoes.filter((a) => a.ata_id === ataId);
-  const trazidos = cacheHistorico.acoes.filter((a) => a.ata_geral_id === ataId);
+  const porTema = (a, b) => ordemTema(a.tema) - ordemTema(b.tema);
+  const doAta = cacheHistorico.acoes.filter((a) => a.ata_id === ataId).sort(porTema);
+  const trazidos = cacheHistorico.acoes.filter((a) => a.ata_geral_id === ataId).sort(porTema);
   let pres = cacheHistorico.presenca.filter((p) => p.ata_id === ataId);
   if (!pres.length) {
     // Reuniões antigas sem lista de presença: considera todos os convocados atuais como presentes
@@ -556,15 +569,15 @@ async function gerarPdfAta(ataId) {
   if (TIPO === "Geral" && trazidos.length) {
     secao("Trazido da Reunião de Líderes:");
     tabela(
-      ["Tipo", "Descrição", "Responsável", "Prazo"],
-      trazidos.map((a) => [a.encaminhamento === "Pauta Geral" ? "Pauta" : "Ação", a.descricao, a.responsavel || "-", formatarDataBR(a.prazo)])
+      ["Tema", "Tipo", "Descrição", "Responsável", "Prazo"],
+      trazidos.map((a) => [a.tema, a.encaminhamento === "Pauta Geral" ? "Pauta" : "Ação", a.descricao, a.responsavel || "-", formatarDataBR(a.prazo)])
     );
   }
 
   secao(TIPO === "Geral" ? "Ações geradas nesta reunião:" : "Ações e pautas geradas:");
   if (doAta.length) {
-    if (TIPO === "Geral") tabela(["Descrição", "Responsável", "Prazo"], doAta.map((a) => [a.descricao, a.responsavel || "-", formatarDataBR(a.prazo)]));
-    else tabela(["Descrição", "Responsável", "Prazo", "Encaminhamento"], doAta.map((a) => [a.descricao, a.responsavel || "-", formatarDataBR(a.prazo), ROTULO_ENC[a.encaminhamento] || "-"]));
+    if (TIPO === "Geral") tabela(["Tema", "Descrição", "Responsável", "Prazo"], doAta.map((a) => [a.tema, a.descricao, a.responsavel || "-", formatarDataBR(a.prazo)]));
+    else tabela(["Tema", "Descrição", "Responsável", "Prazo", "Encaminhamento"], doAta.map((a) => [a.tema, a.descricao, a.responsavel || "-", formatarDataBR(a.prazo), ROTULO_ENC[a.encaminhamento] || "-"]));
   } else {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);

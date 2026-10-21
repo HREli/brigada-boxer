@@ -714,3 +714,11 @@ textarea.campo-inline:focus { border-color: var(--grafite-2); background: #fff; 
 #tabela-acoes-body td:nth-child(6) .badge { white-space: normal; }
 #tabela-acoes-body .btn-excluir-acao { padding: 6px 9px; }
 td.col-desc { width: 40%; }
+
+/* ---- Temas ---- */
+.tema-cab { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--brand-red-dark); margin: 14px 0 4px; padding-bottom: 4px; border-bottom: 1px solid #f3c9c9; }
+.tema-cab:first-child { margin-top: 0; }
+select.sel-tema { border: none; background: #f1f2f4; border-radius: 999px; font-size: .68rem; font-weight: 700; padding: 2px 8px; width: auto; margin: 0 0 4px 6px; color: var(--grafite); cursor: pointer; }
+select.sel-tema.tema-0 { background: #fde8e8; color: var(--brand-red-dark); }
+select.sel-tema.tema-1 { background: #e0f2fe; color: #075985; }
+select.sel-tema.tema-2 { background: #fef9c3; color: #854d0e; }

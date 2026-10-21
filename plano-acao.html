@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=202610216" />
+<link rel="stylesheet" href="css/style.css?v=202610217" />
 </head>
 <body>
 <header class="topbar">
@@ -80,6 +80,10 @@
         <label>Prazo *</label>
         <input type="date" id="nova-prazo" />
       </div>
+      <div class="field">
+        <label>Tema</label>
+        <select id="nova-tema"></select>
+      </div>
     </div>
     <div class="row mt-16">
       <button id="btn-add-manual" class="btn btn-primary">+ Adicionar Ação</button>
@@ -115,6 +119,7 @@
       <div class="field" style="min-width:180px;">
         <label>Ordenar por</label>
         <select id="ordenar-por">
+          <option value="tema">Tema</option>
           <option value="prazo">Prazo</option>
           <option value="status">Status</option>
           <option value="responsavel">Responsável</option>
@@ -149,7 +154,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="js/supabaseClient.js?v=202610216"></script>
-<script src="js/plano-acao.js?v=202610216"></script>
+<script src="js/supabaseClient.js?v=202610217"></script>
+<script src="js/plano-acao.js?v=202610217"></script>
 </body>
 </html>

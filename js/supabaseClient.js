@@ -178,3 +178,13 @@ function rodapePdf(doc) {
 }
 
 const CORES_TABELA_PDF = { fillColor: COR_ESCURA, textColor: [255, 255, 255] };
+
+// Temas das ações/pautas — nesta ordem (Estrutura da Brigada sempre primeiro)
+const TEMAS = ["Estrutura da Brigada", "Equipamentos e Instalações", "Treinamento e DDS", "Outros"];
+function ordemTema(t) {
+  const i = TEMAS.indexOf(t);
+  return i < 0 ? TEMAS.length : i;
+}
+function opcoesTema(sel) {
+  return TEMAS.map((t) => `<option ${t === (sel || "Outros") ? "selected" : ""}>${t}</option>`).join("");
+}

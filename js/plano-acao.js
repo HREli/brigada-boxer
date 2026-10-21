@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("busca-acao").addEventListener("input", renderTabelaAcoes);
   document.getElementById("filtro-origem").addEventListener("change", renderTabelaAcoes);
   document.querySelectorAll(".kpi").forEach((k) => k.addEventListener("click", () => filtrarPor(k.dataset.status)));
+  document.getElementById("nova-tema").innerHTML = opcoesTema("Estrutura da Brigada");
   document.getElementById("chip-filtro-prazo").addEventListener("click", () => {
     filtroPrazo = null;
     renderPainel(acoesCache);
@@ -252,6 +253,7 @@ function obterListaFiltradaOrdenada() {
   }
 
   lista.sort((a, b) => {
+    if (ordenarPor === "tema") return ordemTema(a.tema) - ordemTema(b.tema) || (a.prazo || "9").localeCompare(b.prazo || "9");
     if (ordenarPor === "prazo") return (a.prazo || "").localeCompare(b.prazo || "");
     if (ordenarPor === "status") return (a.status || "").localeCompare(b.status || "");
     if (ordenarPor === "responsavel") return (a.responsavel || "").localeCompare(b.responsavel || "");
@@ -277,7 +279,10 @@ function renderTabelaAcoes() {
   lista.forEach((a) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="col-desc"><textarea class="campo-inline campo-desc" data-id="${a.id}" data-campo="descricao" rows="1">${escapeHtmlPlano(a.descricao)}</textarea></td>
+      <td class="col-desc">
+        <select class="campo-inline sel-tema tema-${ordemTema(a.tema)}" data-id="${a.id}" data-campo="tema" title="Tema">${opcoesTema(a.tema)}</select>
+        <textarea class="campo-inline campo-desc" data-id="${a.id}" data-campo="descricao" rows="1">${escapeHtmlPlano(a.descricao)}</textarea>
+      </td>
       <td class="col-resp"><textarea class="campo-inline campo-resp" data-id="${a.id}" data-campo="responsavel" rows="1" title="${escapeAttr(a.responsavel)}">${escapeHtmlPlano(a.responsavel)}</textarea></td>
       <td><input type="date" class="campo-inline" data-id="${a.id}" data-campo="prazo" value="${a.prazo || ""}" style="border:none;background:transparent;" /></td>
       <td><input type="date" class="campo-inline" data-id="${a.id}" data-campo="data_conclusao" value="${a.data_conclusao || ""}" style="border:none;background:transparent;" /></td>
@@ -379,6 +384,7 @@ async function adicionarAcaoManual() {
       prazo,
       status: prazo < hoje ? "Atrasada" : "Em andamento",
       origem: "Manual",
+      tema: document.getElementById("nova-tema").value || "Outros",
     };
     const { error } = await supabaseClient.from("acoes").insert(payload);
     if (error) throw error;
@@ -417,8 +423,9 @@ async function exportarPlanoPDF() {
 
   doc.autoTable({
     startY: y,
-    head: [["Descrição", "Responsável", "Prazo", "Conclusão", "Status", "Origem"]],
+    head: [["Tema", "Descrição", "Responsável", "Prazo", "Conclusão", "Status", "Origem"]],
     body: lista.map((a) => [
+      a.tema,
       a.descricao,
       a.responsavel,
       formatarDataPlano(a.prazo),
