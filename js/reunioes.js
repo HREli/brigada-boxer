@@ -612,11 +612,14 @@ async function gerarPdfAta(ataId) {
     secao("Assinatura dos presentes:");
     doc.autoTable({
       startY: y + 2,
-      head: [["Nome", "Função", "Assinatura"]],
-      body: presentes.map((b) => [b.nome, b.funcao || b.cargo || "-", ""]),
-      styles: { fontSize: 9, minCellHeight: 10, valign: "middle" },
-      columnStyles: { 2: { cellWidth: 70 } },
-      headStyles: CORES_TABELA_PDF,
+      head: [["Nome", "Assinatura"]],
+      body: presentes.map((b) => [b.nome, ""]),
+      theme: "grid",
+      // linhas altas para caber a assinatura (inclusive assinatura digital)
+      styles: { fontSize: 10, minCellHeight: 22, valign: "middle", lineColor: [190, 190, 190], lineWidth: 0.2 },
+      columnStyles: { 0: { cellWidth: 72, textColor: [39, 38, 38] } },
+      rowPageBreak: "avoid",
+      headStyles: { ...CORES_TABELA_PDF, minCellHeight: 8 },
       margin: { left: marginX, right: marginX, bottom: 16 },
     });
   }
