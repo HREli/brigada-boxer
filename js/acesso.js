@@ -78,27 +78,28 @@ function abrirModalAcesso() {
   telaEntrar(m);
 }
 
+// Uma tela para entrar e outra para criar/trocar a senha (primeiro acesso ou esqueci)
 function telaEntrar(m, modo = "entrar") {
-  const primeiro = modo === "primeiro";
+  const criar = modo === "criar";
   m.innerHTML = `<div class="modal" style="max-width:400px;">
-    <div class="modal-header"><h3 style="margin:0;">${primeiro ? "Primeiro acesso" : "Entrar para editar"}</h3><button class="modal-close" data-fechar>✕</button></div>
+    <div class="modal-header"><h3 style="margin:0;">${criar ? "Criar ou trocar minha senha" : "Entrar para editar"}</h3><button class="modal-close" data-fechar>✕</button></div>
     <p class="small text-muted" style="margin-top:0;">${
-      primeiro
-        ? "Crie sua senha. Válido apenas para o coordenador e os líderes de andar cadastrados."
+      criar
+        ? "Para o primeiro acesso ou se esqueceu a senha. Confirme seus dados e escolha a senha nova."
         : "Acesso do coordenador e dos líderes de andar."
     }</p>
     <div class="field"><label>CPF</label><input type="text" id="ac-cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="username" /></div>
-    <div class="field mt-16"><label>${primeiro ? "Crie uma senha (mín. 8 caracteres)" : "Senha"}</label><input type="password" id="ac-senha" autocomplete="${primeiro ? "new-password" : "current-password"}" /></div>
-    ${primeiro ? '<div class="field mt-16"><label>Repita a senha</label><input type="password" id="ac-senha2" autocomplete="new-password" /></div>' : ""}
-    <div class="row mt-16"><button class="btn btn-primary" id="ac-ok">${primeiro ? "Criar senha e entrar" : "Entrar"}</button></div>
-    <p class="small mt-16"><a href="#" id="ac-trocar" style="color:var(--brand-red);font-weight:600;">${primeiro ? "Já tenho senha" : "Primeiro acesso? Criar minha senha"}</a></p>
-    <p class="small text-muted">Esqueceu a senha? Peça à administradora (Elizângela) para redefinir seu acesso.</p>
+    ${criar ? '<div class="field mt-16"><label>Data de nascimento</label><input type="date" id="ac-nasc" /></div>' : ""}
+    <div class="field mt-16"><label>${criar ? "Nova senha (mínimo 6 caracteres)" : "Senha"}</label><input type="password" id="ac-senha" autocomplete="${criar ? "new-password" : "current-password"}" /></div>
+    ${criar ? '<div class="field mt-16"><label>Repita a nova senha</label><input type="password" id="ac-senha2" autocomplete="new-password" /></div>' : ""}
+    <div class="row mt-16"><button class="btn btn-primary" id="ac-ok">${criar ? "Salvar senha e entrar" : "Entrar"}</button></div>
+    <p class="small mt-16"><a href="#" id="ac-trocar" style="color:var(--brand-red);font-weight:600;">${criar ? "← Voltar para entrar" : "Primeiro acesso ou esqueci minha senha"}</a></p>
     <div id="ac-erro" class="small" style="color:var(--danger);"></div>
   </div>`;
   m.querySelector("[data-fechar]").onclick = () => (m.style.display = "none");
   m.querySelector("#ac-trocar").onclick = (e) => {
     e.preventDefault();
-    telaEntrar(m, primeiro ? "entrar" : "primeiro");
+    telaEntrar(m, criar ? "entrar" : "criar");
   };
   const cpf = m.querySelector("#ac-cpf");
   cpf.addEventListener("input", () => {
@@ -117,10 +118,12 @@ function telaEntrar(m, modo = "entrar") {
     if (!senha) return (erro.textContent = "Informe a senha.");
     btn.disabled = true;
     try {
-      if (primeiro) {
-        if (senha.length < 8) throw new Error("A senha precisa ter pelo menos 8 caracteres.");
+      if (criar) {
+        const nascimento = m.querySelector("#ac-nasc").value;
+        if (!nascimento) throw new Error("Informe a data de nascimento.");
+        if (senha.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
         if (senha !== m.querySelector("#ac-senha2").value) throw new Error("As senhas não conferem.");
-        const { data, error } = await supabaseClient.functions.invoke("acesso", { body: { acao: "primeiro_acesso", cpf: d, senha } });
+        const { data, error } = await supabaseClient.functions.invoke("acesso", { body: { acao: "esqueci", cpf: d, nascimento, senha } });
         if (error) {
           let msg = error.message;
           try {
@@ -131,7 +134,7 @@ function telaEntrar(m, modo = "entrar") {
         if (data && data.erro) throw new Error(data.erro);
       }
       const { error } = await supabaseClient.auth.signInWithPassword({ email: `${d}@${DOMINIO_ACESSO}`, password: senha });
-      if (error) throw new Error("CPF ou senha incorretos.");
+      if (error) throw new Error(criar ? "Senha salva, mas não foi possível entrar. Tente entrar de novo." : "CPF ou senha incorretos.");
       location.reload();
     } catch (e) {
       erro.textContent = e.message;
@@ -161,9 +164,9 @@ async function telaLogado(m) {
     .map(
       (e) => `<div class="acesso-linha"><div><b>${escHtml(e.nome)}</b><div class="small text-muted">${escHtml(e.funcao || "")}${e.admin ? " · administradora" : ""}</div></div>
         <span class="badge ${e.cadastrado ? "badge-ok" : "badge-warn"}">${e.cadastrado ? "Senha criada" : "Aguardando 1º acesso"}</span>
-        ${e.cadastrado && !e.admin ? `<button class="btn btn-secondary btn-redefinir" data-id="${e.brigadista_id}" title="Apaga a senha; a pessoa cria outra no Primeiro acesso">↺ Redefinir</button>` : ""}</div>`
+</div>`
     )
-    .join("")}<p class="small text-muted">Para incluir ou retirar alguém da lista de editores, fale com o suporte do sistema.</p>`;
+    .join("")}<p class="small text-muted">Cada pessoa cria ou troca a própria senha em "Primeiro acesso ou esqueci minha senha" (CPF + data de nascimento). Para incluir ou retirar editores, fale com o suporte do sistema.</p>`;
   box.querySelectorAll(".btn-redefinir").forEach((b) =>
     b.addEventListener("click", async () => {
       if (!confirm("Redefinir o acesso? A pessoa precisará criar uma nova senha em 'Primeiro acesso'.")) return;
