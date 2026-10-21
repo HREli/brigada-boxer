@@ -287,10 +287,28 @@ function casarBrigadista(nomeArquivo) {
     });
   return melhor && melhorPts >= 2 && !empate ? melhor.id : null;
 }
-// Mesma pessoa com mais de um arquivo: fica a versão "assinado"
+// Tipos de certificado da turma 2026: o Avançado tem dois (formação EXXMED, arquivo "..._assinado",
+// e prática de combate em campo PMS, arquivo "Certificado_Brigada de Incêndio - ...")
+function varianteCert(nomeArquivo) {
+  if (/assinad/i.test(nomeArquivo)) return "formacao";
+  if (/^certificado[_ ]brigada/i.test(normalizarNome(nomeArquivo).toLowerCase().replace(/ /g, "_"))) return "pratica";
+  return "formacao";
+}
+function tituloCert(l, emissao) {
+  const b = brigadistas.find((x) => x.id === l.brigadistaId);
+  const ano = (emissao || "").slice(0, 4);
+  if (varianteCert(l.file.name) === "pratica") return `Prática de Combate a Incêndio em campo (8h) ${ano}`;
+  const nivel = b && b.classificacao ? ` — Nível ${b.classificacao}${b.carga_horaria ? ` (${b.carga_horaria}h)` : ""}` : "";
+  return `Formação de Brigada de Incêndio ${ano}${nivel}`;
+}
+// Mesma pessoa com mais de um arquivo do MESMO tipo: fica a versão "assinado"
 function marcarDuplicados() {
   const porPessoa = {};
-  lote.forEach((l) => l.brigadistaId && (porPessoa[l.brigadistaId] = porPessoa[l.brigadistaId] || []).push(l));
+  lote.forEach((l) => {
+    if (!l.brigadistaId) return;
+    const k = l.brigadistaId + "|" + varianteCert(l.file.name);
+    (porPessoa[k] = porPessoa[k] || []).push(l);
+  });
   lote.forEach((l) => (l.ignorar = false));
   Object.values(porPessoa).forEach((arr) => {
     if (arr.length < 2) return;
@@ -298,8 +316,9 @@ function marcarDuplicados() {
     arr.forEach((l) => l !== assinado && (l.ignorar = true));
   });
 }
-function jaArquivado(brigadistaId, emissao) {
-  return documentos.some((d) => d.tipo === "Certificado de Formação" && d.brigadista_id === brigadistaId && (!emissao || d.data_emissao === emissao));
+function jaArquivado(l, emissao) {
+  const titulo = tituloCert(l, emissao);
+  return documentos.some((d) => d.tipo === "Certificado de Formação" && d.brigadista_id === l.brigadistaId && d.titulo === titulo);
 }
 function renderLote() {
   const box = document.getElementById("lote-previa");
@@ -321,19 +340,19 @@ function renderLote() {
     let st;
     if (!l.brigadistaId) st = '<span class="badge badge-danger">Escolha o brigadista</span>';
     else if (l.ignorar) st = '<span class="badge badge-muted">Ignorado (já há versão assinada)</span>';
-    else if (jaArquivado(l.brigadistaId, emissao)) st = '<span class="badge badge-muted">Já arquivado</span>';
+    else if (jaArquivado(l, emissao)) st = '<span class="badge badge-muted">Já arquivado</span>';
     else (st = '<span class="badge badge-ok">Pronto</span>'), ok++;
     const b = brigadistas.find((x) => x.id === l.brigadistaId);
     return `<tr><td class="small">${escHtml(l.file.name)}</td>
       <td><select class="sel-lote" data-i="${i}">${opcoes(l.brigadistaId)}</select></td>
-      <td>${b && b.classificacao ? escHtml(b.classificacao) : "-"}</td><td>${st}</td></tr>`;
+      <td class="small">${l.brigadistaId ? escHtml(tituloCert(l, emissao)) : "-"}</td><td>${st}</td></tr>`;
   });
   const pessoas = new Set(lote.filter((l) => l.brigadistaId).map((l) => l.brigadistaId));
   const semArquivo = brigadistas.filter((b) => b.ativo && b.e_brigadista && !pessoas.has(b.id)).map((b) => b.nome);
   box.innerHTML = `<p class="small"><b>${lote.length}</b> arquivo(s) · <b>${ok}</b> pronto(s) para importar.${
     semArquivo.length ? ` Brigadistas sem arquivo nesta seleção: ${semArquivo.length}.` : ""
   }</p>
-  <div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Brigadista</th><th>Classificação</th><th>Situação</th></tr></thead><tbody>${linhas.join("")}</tbody></table></div>`;
+  <div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Brigadista</th><th>Certificado</th><th>Situação</th></tr></thead><tbody>${linhas.join("")}</tbody></table></div>`;
   box.querySelectorAll(".sel-lote").forEach((s) =>
     s.addEventListener("change", () => {
       lote[+s.dataset.i].brigadistaId = s.value || null;
@@ -349,7 +368,7 @@ async function importarLote() {
   const emissao = document.getElementById("lote-emissao").value;
   const validade = document.getElementById("lote-validade").value || null;
   if (!emissao) return showToast("Informe a data de emissão.", "error");
-  const prontos = lote.filter((l) => l.brigadistaId && !l.ignorar && !jaArquivado(l.brigadistaId, emissao));
+  const prontos = lote.filter((l) => l.brigadistaId && !l.ignorar && !jaArquivado(l, emissao));
   const obs = document.getElementById("lote-obs").value.trim() || null;
   const btn = document.getElementById("btn-importar-lote");
   btn.disabled = true;
@@ -358,13 +377,11 @@ async function importarLote() {
   for (const l of prontos) {
     btn.textContent = `Enviando ${feitos + 1} de ${prontos.length}...`;
     try {
-      const b = brigadistas.find((x) => x.id === l.brigadistaId);
-      const nivel = b.classificacao ? ` — Nível ${b.classificacao}${b.carga_horaria ? ` (${b.carga_horaria}h)` : ""}` : "";
       const arquivo_url = await uploadPrivado(l.file, "certificados/");
       const { error } = await supabaseClient.from("documentos").insert({
         tipo: "Certificado de Formação",
-        titulo: `Formação de Brigada de Incêndio ${emissao.slice(0, 4)}${nivel}`,
-        brigadista_id: b.id,
+        titulo: tituloCert(l, emissao),
+        brigadista_id: l.brigadistaId,
         data_emissao: emissao,
         data_validade: validade,
         arquivo_url,
