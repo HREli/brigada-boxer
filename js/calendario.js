@@ -198,7 +198,7 @@ function linhaReuniao(r, m) {
   const nome = r.tipo === "Geral" ? "Reunião Geral" : "Reunião de Líderes";
   let quando;
   if (st.data) quando = fmt(st.data);
-  else if (r.tipo === "Lideres" && st.rotulo === "A combinar") quando = `<span class="text-muted">a combinar, entre ${formatarDataBR(r.janelaIni).slice(0, 5)} e ${formatarDataBR(r.janelaFim).slice(0, 5)}</span>`;
+  else if (r.tipo === "Lideres" && st.rotulo === "A combinar") quando = `<span class="text-muted">a combinar<br><small>entre ${formatarDataBR(r.janelaIni).slice(0, 5)} e ${formatarDataBR(r.janelaFim).slice(0, 5)}</small></span>`;
   else quando = "—";
   const remarcada = r.tipo === "Geral" && r.prevista !== r.padrao && !r.ata && st.chave !== "realizada" ? ' <span class="tag-remarcada">remarcada</span>' : "";
 
