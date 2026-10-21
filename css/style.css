@@ -722,3 +722,36 @@ select.sel-tema { border: none; background: #f1f2f4; border-radius: 999px; font-
 select.sel-tema.tema-0 { background: #fde8e8; color: var(--brand-red-dark); }
 select.sel-tema.tema-1 { background: #e0f2fe; color: #075985; }
 select.sel-tema.tema-2 { background: #fef9c3; color: #854d0e; }
+
+/* ---- Calendário de reuniões ---- */
+.legenda-cal { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--text-muted); }
+.legenda-cal span { display: inline-flex; align-items: center; gap: 6px; }
+.pt { display: inline-block; width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.pt.prevista { background: #3b82f6; } .pt.realizada { background: var(--ok); } .pt.atrasada { background: var(--danger); } .pt.cinza { background: #b6bcc6; }
+.indicator-card .value .de { font-size: 1rem; color: var(--text-muted); }
+.meses-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+.mes-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.mes-card.atual { border-color: var(--brand-red); box-shadow: 0 0 0 2px rgba(214,8,8,.12), var(--shadow); }
+.mes-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f7f7f8; border-bottom: 1px solid var(--border); }
+.mes-head h3 { margin: 0; font-size: 1rem; color: var(--grafite); }
+.reuniao-bloco { padding: 12px 16px; border-bottom: 1px solid #f0f1f3; }
+.reuniao-bloco:last-child { border-bottom: none; }
+.reuniao-linha { display: flex; align-items: center; gap: 10px; }
+.reuniao-texto { flex: 1; min-width: 0; }
+.reuniao-nome { font-weight: 700; font-size: .86rem; }
+.reuniao-quando { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+.reuniao-obs { font-size: .74rem; color: #92400e; background: #fffbeb; border-radius: 6px; padding: 4px 8px; margin: 8px 0 0 21px; }
+.tag-remarcada { font-size: .62rem; font-weight: 700; background: #fef3c7; color: #92400e; border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+.st-badge-prevista { background: #dbeafe; color: #1d4ed8; } .st-badge-realizada { background: #dcfce7; color: var(--ok); }
+.st-badge-atrasada { background: #fee2e2; color: var(--danger); } .st-badge-cinza { background: #eceef1; color: var(--text-muted); }
+.st-cinza .reuniao-nome { color: var(--text-muted); }
+.btn-mini { border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: .8rem; text-decoration: none; }
+.btn-mini:hover { border-color: var(--brand-red); }
+.pres-nums { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0 0 21px; }
+.num-pres { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 4px 11px; font-family: inherit; font-size: .76rem; cursor: pointer; }
+.num-pres.ok b { color: var(--ok); } .num-pres.falta b { color: var(--danger); }
+.num-pres:hover { border-color: var(--grafite-2); }
+.pres-lista { margin: 8px 0 0 21px; display: flex; flex-wrap: wrap; gap: 6px; }
+.pessoa-chip.ausente { background: #fff1f1; border-color: #f3c9c9; }
+.pessoa-chip i { color: var(--text-muted); font-style: normal; }
+.mes-card.fora { opacity: .55; box-shadow: none; }

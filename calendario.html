@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Brigada Boxer — Calendário de Reuniões</title>
+<link rel="icon" type="image/svg+xml" href="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/favicon-boxer.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css?v=202610218" />
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo-link"><img src="https://yybkkmjplzxxwsepkuuf.supabase.co/storage/v1/object/public/fotos/marca/logo-boxer-branca.png" alt="Boxer Soldas" class="logo-boxer" /></a>
+  <div class="topbar-titulo">
+    <h1>BRIGADA DE INCÊNDIO</h1>
+    <p class="subtitle">Calendário de Reuniões</p>
+  </div>
+  <a href="index.html" class="back-link">← Menu Principal</a>
+</header>
+
+<div class="container">
+  <div id="config-warning" class="config-warning" style="display:none;"></div>
+
+  <div class="fluxo-reunioes">
+    <span class="fluxo-etapa atual">📅 Calendário</span>
+    <a href="reuniao-lideres.html" class="fluxo-etapa">1 · Reunião de Líderes</a>
+    <span class="fluxo-seta">→</span>
+    <a href="reuniao-geral.html" class="fluxo-etapa">2 · Reunião Geral</a>
+    <span class="fluxo-seta">→</span>
+    <a href="plano-acao.html" class="fluxo-etapa">3 · Plano de Ação</a>
+  </div>
+
+  <div class="row justify-between mb-16">
+    <div class="row">
+      <button id="ano-anterior" class="btn btn-secondary">◀</button>
+      <h2 id="titulo-ano" style="margin:0 8px; color:var(--grafite);">2026</h2>
+      <button id="ano-seguinte" class="btn btn-secondary">▶</button>
+    </div>
+    <div class="legenda-cal">
+      <span><i class="pt prevista"></i>Prevista</span>
+      <span><i class="pt realizada"></i>Realizada</span>
+      <span><i class="pt atrasada"></i>Não realizada</span>
+      <span><i class="pt cinza"></i>Não necessária / cancelada</span>
+    </div>
+  </div>
+
+  <div class="indicators" id="resumo-ano"></div>
+
+  <p class="text-muted small">Regra: <b>Reunião Geral</b> na 3ª quarta-feira do mês. <b>Reunião de Líderes</b> a combinar, de 7 a 10 dias antes da Geral (pode não acontecer em alguns meses). Use <b>✏️</b> para remarcar ou marcar exceções. Clique nos números de presentes/ausentes para ver os nomes.</p>
+
+  <div id="meses" class="meses-grid"></div>
+</div>
+
+<!-- Modal de edição -->
+<div id="modal-agenda" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h3 id="modal-agenda-titulo" style="margin:0;">Remarcar</h3>
+      <button class="modal-close" id="modal-agenda-fechar">✕</button>
+    </div>
+    <div class="field">
+      <label>Situação</label>
+      <select id="ag-situacao">
+        <option value="Agendada">Agendada</option>
+        <option value="Não necessária">Não haverá (não necessária)</option>
+        <option value="Cancelada">Cancelada</option>
+      </select>
+    </div>
+    <div class="field mt-16" id="wrap-ag-data">
+      <label>Data</label>
+      <input type="date" id="ag-data" />
+      <div class="small text-muted" id="ag-dica" style="margin-top:4px;"></div>
+    </div>
+    <div class="field mt-16">
+      <label>Observação</label>
+      <input type="text" id="ag-obs" placeholder="Ex.: excepcionalmente na quinta-feira" />
+    </div>
+    <div class="row mt-16">
+      <button id="ag-salvar" class="btn btn-primary">💾 Salvar</button>
+      <button id="ag-padrao" class="btn btn-secondary">↺ Voltar ao padrão</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/supabaseClient.js?v=202610218"></script>
+<script src="js/calendario.js?v=202610218"></script>
+</body>
+</html>
