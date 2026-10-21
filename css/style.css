@@ -833,3 +833,15 @@ input[type=password]:focus { outline: none; border-color: var(--navy-2); box-sha
 .cal-tabela td.cal-data { white-space: normal; min-width: 120px; }
 .cal-tabela td.cal-obs { min-width: 0; }
 .cal-tabela th { white-space: normal; }
+
+/* Certificados: botões de nível e linhas de grupo */
+.niveis-barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.nivel-btn { font-family: inherit; font-size: .85rem; font-weight: 700; background: #fff; color: var(--grafite, #272626); border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+.nivel-btn .nivel-cont { display: inline-block; min-width: 22px; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #f1f2f4; font-size: .75rem; }
+.nivel-btn:hover { border-color: var(--brand-red); }
+.nivel-btn.ativo { background: var(--grafite, #272626); color: #fff; border-color: var(--grafite, #272626); }
+.nivel-btn.ativo .nivel-cont { background: rgba(255,255,255,.2); }
+.nivel-btn.nivel-inter.ativo { background: #b7791f; border-color: #b7791f; }
+.nivel-btn.nivel-avanc.ativo { background: var(--brand-red); border-color: var(--brand-red); }
+tr.grupo-linha td { background: #f7f7f8; font-weight: 800; font-size: .78rem; text-transform: uppercase; letter-spacing: .5px; color: var(--brand-red-dark); padding: 9px 10px; }
+tr.grupo-linha td span { display: inline-block; margin-left: 6px; background: #fde8e8; color: var(--brand-red-dark); border-radius: 999px; padding: 1px 8px; font-size: .72rem; }

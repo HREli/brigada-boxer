@@ -12,7 +12,7 @@ const LIVRES = [
   ".tab-btn", "[id^=filtro]", "[id^=busca]", "#ordenar-por", "#ano-anterior", "#ano-seguinte",
   ".kpi", ".faixa", ".num-pres", ".chip-filtro", "#btn-fechar-detalhe", ".modal-close",
   "button[id*=pdf]", "button[id*=export]", "#btn-print-quadro", ".btn-gerar-pdf", "#btn-modelo",
-  "#btn-acesso", "#modal-acesso *", ".btn-situacao",
+  "#btn-acesso", "#modal-acesso *", ".btn-situacao", ".nivel-btn",
 ].join(",");
 const ABAS_EDICAO = ["nova", "novo", "importar", "fotos", "lote"];
 

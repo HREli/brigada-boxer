@@ -5,6 +5,8 @@
 let documentos = [];
 let brigadistas = [];
 const DIAS_ALERTA_DOC = 60;
+let nivelSel = ""; // "" = todos · "Avançado" · "Intermediário"
+const NIVEIS = ["Avançado", "Intermediário"];
 
 document.addEventListener("DOMContentLoaded", () => {
   mostrarAvisoConfiguracao();
@@ -17,6 +19,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("doc-titulo").addEventListener("input", (e) => (e.target.dataset.auto = "0"));
   ajustarFormulario();
   iniciarImportacaoLote();
+  document.querySelectorAll(".nivel-btn").forEach((b) =>
+    b.addEventListener("click", () => {
+      nivelSel = b.dataset.nivel;
+      document.querySelectorAll(".nivel-btn").forEach((x) => x.classList.toggle("ativo", x === b));
+      renderArquivo();
+      renderSituacao();
+    })
+  );
   carregar();
 });
 
@@ -74,6 +84,7 @@ async function carregar() {
       .map((x) => `<option value="${x.id}">${escHtml(x.nome)}</option>`)
       .join("");
   renderIndicadores();
+  renderBotoesNivel();
   renderArquivo();
   renderSituacao();
 }
@@ -90,6 +101,20 @@ function nomeBrigadista(id) {
   const b = brigadistas.find((x) => x.id === id);
   return b ? b.nome : "";
 }
+
+function nivelDe(brigadistaId) {
+  const b = brigadistas.find((x) => x.id === brigadistaId);
+  return b && b.classificacao ? b.classificacao : "";
+}
+function renderBotoesNivel() {
+  const ativos = brigadistas.filter((b) => b.ativo && b.e_brigadista);
+  document.querySelectorAll(".nivel-btn").forEach((b) => {
+    const n = b.dataset.nivel;
+    const c = b.querySelector(".nivel-cont");
+    if (c) c.textContent = n ? ativos.filter((x) => x.classificacao === n).length : ativos.length;
+  });
+}
+const linhaGrupo = (titulo, n, cols, classe = "") => `<tr class="grupo-linha ${classe}"><td colspan="${cols}">${titulo} <span>${n}</span></td></tr>`;
 
 function renderIndicadores() {
   document.getElementById("ind-docs").textContent = documentos.length;
@@ -119,13 +144,19 @@ function renderArquivo() {
     if (tipo && d.tipo !== tipo) return false;
     if (validade && situacaoValidade(d.data_validade).chave !== validade) return false;
     if (busca && !normalizarNome(d.titulo + " " + nomeBrigadista(d.brigadista_id)).includes(busca)) return false;
+    if (nivelSel && !(d.tipo === "Certificado de Formação" && nivelDe(d.brigadista_id) === nivelSel)) return false;
     return true;
   });
+  // agrupa: atestado/outros, depois certificados por nível (Avançado, Intermediário), por nome
+  const grupoDe = (d) => (d.tipo !== "Certificado de Formação" ? "Atestado e outros documentos" : nivelDe(d.brigadista_id) ? `Nível ${nivelDe(d.brigadista_id)}` : "Certificados da turma / sem nível");
+  const ordemGrupo = (g) => (g.startsWith("Atestado") ? 0 : g === "Nível Avançado" ? 1 : g === "Nível Intermediário" ? 2 : 3);
+  lista.sort((a, b) => ordemGrupo(grupoDe(a)) - ordemGrupo(grupoDe(b)) || nomeBrigadista(a.brigadista_id).localeCompare(nomeBrigadista(b.brigadista_id)) || a.titulo.localeCompare(b.titulo));
   const tbody = document.getElementById("tabela-docs");
   document.getElementById("docs-empty").style.display = lista.length ? "none" : "block";
+  let grupoAtual = null;
   tbody.innerHTML = lista
     .map(
-      (d) => `<tr>
+      (d) => (grupoDe(d) !== grupoAtual ? linhaGrupo((grupoAtual = grupoDe(d)), lista.filter((x) => grupoDe(x) === grupoAtual).length, 7) : "") + `<tr>
       <td><span class="badge ${d.tipo === "Atestado da Brigada" ? "badge-brigada" : "badge-muted"}">${escHtml(d.tipo)}</span></td>
       <td><b>${escHtml(d.titulo)}</b>${d.observacoes ? `<div class="small text-muted">${escHtml(d.observacoes)}</div>` : ""}</td>
       <td>${d.tipo === "Certificado de Formação" ? escHtml(nomeBrigadista(d.brigadista_id) || "Turma") : "-"}</td>
@@ -159,18 +190,31 @@ function calcularSituacaoBrigadistas() {
 }
 
 function renderSituacao() {
-  const lista = calcularSituacaoBrigadistas();
+  const certs = documentos.filter((d) => d.tipo === "Certificado de Formação");
+  let lista = calcularSituacaoBrigadistas();
+  if (nivelSel) lista = lista.filter(({ b }) => b.classificacao === nivelSel);
+  const grupoDe = (b) => (b.classificacao ? `Nível ${b.classificacao}` : "Sem classificação");
+  const ordem = (g) => (g === "Nível Avançado" ? 0 : g === "Nível Intermediário" ? 1 : 2);
+  lista.sort((x, y) => ordem(grupoDe(x.b)) - ordem(grupoDe(y.b)) || x.b.nome.localeCompare(y.b.nome));
   document.getElementById("situacao-empty").style.display = lista.length ? "none" : "block";
+  let grupoAtual = null;
   document.getElementById("tabela-situacao").innerHTML = lista
     .map(({ b, doc, turmaVigente }) => {
+      const meus = certs.filter((d) => d.brigadista_id === b.id).sort((x, y) => x.titulo.localeCompare(y.titulo));
       let situacao;
       if (doc) situacao = situacaoValidade(doc.data_validade).html;
       else if (turmaVigente) situacao = '<span class="badge badge-warn">Só certificado da turma</span>';
       else situacao = '<span class="badge badge-danger">Sem certificado</span>';
-      return `<tr>
+      const docsHtml = meus.length
+        ? meus.map((d) => `<div><a href="#" data-arquivo="${escHtml(d.arquivo_url)}">${escHtml(d.titulo)}</a></div>`).join("")
+        : turmaVigente
+        ? `<a href="#" data-arquivo="${escHtml(turmaVigente.arquivo_url)}">${escHtml(turmaVigente.titulo)} (turma)</a>`
+        : "-";
+      const cab = grupoDe(b) !== grupoAtual ? linhaGrupo((grupoAtual = grupoDe(b)), lista.filter((x) => grupoDe(x.b) === grupoAtual).length, 5) : "";
+      return `${cab}<tr>
         <td><b>${escHtml(b.nome)}</b></td>
         <td>${escHtml(b.funcao || b.cargo || "-")}</td>
-        <td>${doc ? `<a href="#" data-arquivo="${escHtml(doc.arquivo_url)}">${escHtml(doc.titulo)}</a>` : turmaVigente ? `<a href="#" data-arquivo="${escHtml(turmaVigente.arquivo_url)}">${escHtml(turmaVigente.titulo)} (turma)</a>` : "-"}</td>
+        <td class="small">${docsHtml}</td>
         <td>${formatarDataBR(doc ? doc.data_validade : turmaVigente ? turmaVigente.data_validade : null)}</td>
         <td>${situacao}</td>
       </tr>`;
