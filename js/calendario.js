@@ -84,10 +84,11 @@ async function carregar() {
     if (atas.length) {
       const { data, error } = await supabaseClient
         .from("ata_assinaturas")
-        .select("ata_id,presente,justificativa,brigadista:brigadistas(nome,funcao)")
+        .select("ata_id,presente,justificativa,brigadista:brigadistas(nome,funcao,data_entrada,data_saida)")
         .in("ata_id", atas.map((a) => a.id));
       if (error) throw error;
-      presencas = data || [];
+      const dataAta = Object.fromEntries(atas.map((a) => [a.id, a.data_reuniao]));
+      presencas = (data || []).filter((p) => !p.brigadista || participavaEm(p.brigadista, dataAta[p.ata_id]));
     }
   } catch (err) {
     console.error(err);

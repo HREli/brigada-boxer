@@ -318,12 +318,18 @@ function renderTabela() {
       : '<span class="text-muted small">—</span>';
     tr.innerHTML = `
       <td><img class="avatar avatar-sm" src="${escHtml(c.foto_url || FOTO_PADRAO)}" /></td>
-      <td><b>${escHtml(c.nome)}</b></td>
+      <td><b>${escHtml(c.nome)}</b>${
+        !c.ativo && c.data_saida
+          ? `<div class="small text-muted">Saiu em ${formatarDataBR(c.data_saida)}${c.motivo_saida ? " · " + escHtml(c.motivo_saida) : ""}</div>`
+          : c.data_entrada && c.e_brigadista
+          ? `<div class="small text-muted">Na brigada desde ${formatarDataBR(c.data_entrada)}</div>`
+          : ""
+      }</td>
       <td>${escHtml(c.vinculo || "-")}</td>
       <td>${escHtml(c.area || "-")}<div class="small text-muted">${escHtml(c.departamento || "")}</div></td>
       <td>${escHtml(c.piso || "-")}</td>
       <td class="col-funcao">${brigada}</td>
-      <td class="col-centro"><button class="btn-situacao ${c.ativo ? "ativo" : "inativo"}" data-id="${c.id}" title="Clique para alterar">${c.ativo ? "Ativo" : "Inativo"}</button></td>
+      <td class="col-centro"><button class="btn-situacao ${c.ativo ? "ativo" : "inativo"}" data-id="${c.id}" title="${c.ativo ? "Clique para registrar a saída" : "Clique para reativar"}">${c.ativo ? "Ativo" : "Inativo"}</button></td>
       <td><button class="btn btn-secondary btn-editar" data-id="${c.id}" title="Editar">✏️</button></td>
     `;
     tbody.appendChild(tr);
@@ -337,11 +343,14 @@ async function alternarSituacao(id) {
   const c = colaboradores.find((x) => x.id === id);
   if (!c) return;
   const novo = !c.ativo;
-  if (!novo && c.e_brigadista && !confirm(`${c.nome} é brigadista. Ao inativar, deixa de aparecer no quadro, nas assinaturas e nas inspeções. Continuar?`)) return;
+  if (!novo) return abrirModal(id, true); // saída: pede a data e o motivo
+  if (!confirm(`Reativar ${c.nome}? A data de saída registrada será apagada.`)) return;
   try {
-    const { error } = await supabaseClient.from("brigadistas").update({ ativo: novo, updated_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabaseClient.from("brigadistas").update({ ativo: true, data_saida: null, motivo_saida: null, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
-    c.ativo = novo;
+    c.ativo = true;
+    c.data_saida = null;
+    c.motivo_saida = null;
     showToast(`${c.nome}: ${novo ? "ativo" : "inativo"}.`, "success");
     renderIndicadores();
     renderOrgChart();
@@ -360,6 +369,7 @@ function setupModal() {
     if (e.target.id === "modal-colab") fecharModal();
   });
   document.getElementById("campo-brigadista").addEventListener("change", atualizarCamposBrigada);
+  document.getElementById("campo-ativo").addEventListener("change", atualizarCampoSaida);
   // Ao escolher um nome da lista de colaboradores, preenche área, departamento e localização
   document.getElementById("campo-nome").addEventListener("change", (e) => {
     if (document.getElementById("colab-id").value) return;
@@ -396,7 +406,13 @@ function atualizarCamposBrigada() {
   document.getElementById("campos-brigada").style.display = on ? "grid" : "none";
 }
 
-function abrirModal(id) {
+function atualizarCampoSaida() {
+  const inativo = !document.getElementById("campo-ativo").checked;
+  document.getElementById("box-saida").style.display = inativo ? "block" : "none";
+  if (inativo && !document.getElementById("campo-saida").value) document.getElementById("campo-saida").value = hojeISOLocal();
+}
+
+function abrirModal(id, paraSaida = false) {
   const c = id ? colaboradores.find((x) => x.id === id) : null;
   document.getElementById("form-colab").reset();
   fotoArquivoSelecionado = null;
@@ -407,7 +423,11 @@ function abrirModal(id) {
   document.getElementById("campo-local").value = c ? c.piso || "" : "";
   document.getElementById("campo-area").value = c ? c.area || "" : "";
   document.getElementById("campo-depto").value = c ? c.departamento || "" : "";
-  document.getElementById("campo-ativo").checked = c ? c.ativo : true;
+  document.getElementById("campo-ativo").checked = c ? c.ativo && !paraSaida : true;
+  document.getElementById("campo-entrada").value = c ? c.data_entrada || "" : hojeISOLocal();
+  document.getElementById("campo-saida").value = c && !c.ativo ? c.data_saida || "" : "";
+  document.getElementById("campo-motivo").value = c && !c.ativo ? c.motivo_saida || "" : "";
+  atualizarCampoSaida();
   document.getElementById("campo-brigadista").checked = c ? c.e_brigadista : true;
   document.getElementById("campo-cargo").value = c ? c.cargo || "" : "";
   document.getElementById("campo-funcao").value = c ? c.funcao || "" : "";
@@ -419,6 +439,7 @@ function abrirModal(id) {
   document.getElementById("foto-preview").src = (c && c.foto_url) || FOTO_PADRAO;
   atualizarCamposBrigada();
   document.getElementById("modal-colab").style.display = "flex";
+  if (paraSaida) setTimeout(() => document.getElementById("campo-saida").focus(), 50);
 }
 
 function fecharModal() {
@@ -434,6 +455,9 @@ async function salvarColaborador() {
   const funcao = document.getElementById("campo-funcao").value.replace(/\s+/g, " ").trim();
 
   if (!nome) return showToast("Informe o nome.", "error");
+  const ativoForm = document.getElementById("campo-ativo").checked;
+  const dataSaida = document.getElementById("campo-saida").value || null;
+  if (!ativoForm && !dataSaida) return showToast("Informe a data de saída.", "error");
   if (eBrig && (!cargo || !funcao)) return showToast("Para brigadista, escolha o cargo e a função.", "error");
 
   const duplicado = colaboradores.find((c) => c.id !== id && normalizarNome(c.nome) === normalizarNome(nome));
@@ -445,7 +469,10 @@ async function salvarColaborador() {
     piso: document.getElementById("campo-local").value.trim().toUpperCase() || null,
     area: document.getElementById("campo-area").value.trim() || null,
     departamento: document.getElementById("campo-depto").value.trim() || null,
-    ativo: document.getElementById("campo-ativo").checked,
+    ativo: ativoForm,
+    data_entrada: document.getElementById("campo-entrada").value || null,
+    data_saida: ativoForm ? null : dataSaida,
+    motivo_saida: ativoForm ? null : document.getElementById("campo-motivo").value.trim() || null,
     e_brigadista: eBrig,
     cargo: eBrig ? cargo : null,
     funcao: eBrig ? funcao : null,

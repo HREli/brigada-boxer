@@ -350,12 +350,14 @@ async function carregarHistorico() {
       TIPO === "Lideres" ? supabaseClient.from("atas").select("id,data_reuniao").eq("tipo", "Geral") : Promise.resolve({ data: [] }),
       supabaseClient
         .from("ata_assinaturas")
-        .select("id, ata_id, brigadista_id, presente, justificativa, brigadista:brigadistas(nome,funcao,cargo)")
+        .select("id, ata_id, brigadista_id, presente, justificativa, brigadista:brigadistas(nome,funcao,cargo,data_entrada,data_saida)")
         .in("ata_id", ids),
     ]);
     const acoes = [...(proprias.data || []), ...(vinculadas.data || [])];
     const mapaGerais = Object.fromEntries((todasAtasGerais.data || []).map((g) => [g.id, g.data_reuniao]));
-    const presenca = (presencaRes.data || []).filter((p) => p.brigadista);
+    // quem já tinha saído (ou ainda não tinha entrado) na data da reunião não entra na lista
+    const dataAta = Object.fromEntries(atas.map((a) => [a.id, a.data_reuniao]));
+    const presenca = (presencaRes.data || []).filter((p) => p.brigadista && participavaEm(p.brigadista, dataAta[p.ata_id]));
     presenca.sort((a, b) => a.brigadista.nome.localeCompare(b.brigadista.nome));
     cacheHistorico = { atas, acoes, presenca };
 
@@ -1098,8 +1100,14 @@ async function salvarEdicaoAta(data_reuniao, conteudo, itens) {
       if (error) throw error;
     }
     // presença
-    const { data: linhas, error: ePres } = await supabaseClient.from("ata_assinaturas").select("id, brigadista_id").eq("ata_id", ataId);
+    const { data: linhas, error: ePres } = await supabaseClient.from("ata_assinaturas").select("id, brigadista_id, brigadista:brigadistas(data_entrada,data_saida)").eq("ata_id", ataId);
     if (ePres) throw ePres;
+    // tira da lista quem já tinha saído da brigada na data da reunião
+    const fora = (linhas || []).filter((l) => l.brigadista && !participavaEm(l.brigadista, data_reuniao)).map((l) => l.id);
+    if (fora.length) {
+      const { error } = await supabaseClient.from("ata_assinaturas").delete().in("id", fora);
+      if (error) throw error;
+    }
     for (const b of convidados()) {
       const e = presencaNova[b.id] || { presente: true, justificativa: "" };
       const valores = { presente: e.presente, justificativa: e.presente ? null : (e.justificativa || "").trim() || null };

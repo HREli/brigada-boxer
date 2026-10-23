@@ -95,6 +95,14 @@ document.addEventListener("click", (e) => {
   abrirArquivo(a.dataset.arquivo);
 });
 
+// A pessoa fazia parte da brigada na data? (saiu antes ou entrou depois = não)
+function participavaEm(b, dataISO) {
+  if (!b || !dataISO) return true;
+  if (b.data_saida && b.data_saida < dataISO) return false;
+  if (b.data_entrada && b.data_entrada > dataISO) return false;
+  return true;
+}
+
 // ---------------- Utilitários comuns ----------------
 
 // "José da Silva " -> "JOSE DA SILVA" (sem acentos, espaços extras ou caixa)

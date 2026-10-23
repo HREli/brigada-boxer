@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=2026102120" />
+<link rel="stylesheet" href="css/style.css?v=2026102301" />
 </head>
 <body>
 
@@ -203,10 +203,29 @@
           <label>Departamento</label>
           <input type="text" id="campo-depto" list="dl-depto" />
         </div>
-        <div class="field field-full">
-          <label class="check-line" style="margin:6px 0 0;">
+        <div class="field">
+          <label>Entrou na brigada em</label>
+          <input type="date" id="campo-entrada" />
+        </div>
+        <div class="field">
+          <label class="check-line" style="margin:24px 0 0;">
             <input type="checkbox" id="campo-ativo" checked /> Colaborador <b>ativo</b>
           </label>
+        </div>
+        <div class="box-saida field-full" id="box-saida" style="display:none;">
+          <div class="small" style="font-weight:700;margin-bottom:8px;">Saída da brigada</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Saiu em *</label>
+              <input type="date" id="campo-saida" />
+            </div>
+            <div class="field">
+              <label>Motivo</label>
+              <input type="text" id="campo-motivo" list="dl-motivo" placeholder="Ex.: pediu demissão" />
+              <datalist id="dl-motivo"><option value="Pediu demissão"></option><option value="Desligado pela empresa"></option><option value="Pediu para sair da brigada"></option><option value="Afastamento"></option><option value="Transferência"></option></datalist>
+            </div>
+          </div>
+          <div class="small text-muted" style="margin-top:6px;">A partir desta data, a pessoa sai do quadro e das listas de presença. Reuniões anteriores continuam com ela.</div>
         </div>
       </div>
       <div class="box-brigada mt-16">
@@ -274,8 +293,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/supabaseClient.js?v=2026102120"></script>
+<script src="js/supabaseClient.js?v=2026102301"></script>
 <script src="js/acesso.js?v=7"></script>
-<script src="js/brigadistas.js?v=2026102110"></script>
+<script src="js/brigadistas.js?v=2026102301"></script>
 </body>
 </html>
