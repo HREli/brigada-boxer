@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/style.css?v=2026102301" />
+<link rel="stylesheet" href="css/style.css?v=2026102303" />
 </head>
 <body>
 
@@ -227,6 +227,20 @@
           </div>
           <div class="small text-muted" style="margin-top:6px;">A partir desta data, a pessoa sai do quadro e das listas de presença. Reuniões anteriores continuam com ela.</div>
         </div>
+        <div class="box-acesso field-full" id="box-acesso">
+          <div class="small" style="font-weight:700;margin-bottom:4px;">Acesso ao app <span id="acesso-status" class="badge badge-muted" style="margin-left:6px;"></span></div>
+          <div class="form-grid">
+            <div class="field">
+              <label>CPF</label>
+              <input type="text" id="campo-cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>Data de nascimento</label>
+              <input type="date" id="campo-nasc" />
+            </div>
+          </div>
+          <div class="small text-muted" style="margin-top:6px;">Usados só para a pessoa entrar no app. Ficam em área protegida e não aparecem em nenhuma tela. Para corrigir, basta digitar de novo.</div>
+        </div>
       </div>
       <div class="box-brigada mt-16">
         <label class="check-line" style="margin:0 0 10px;">
@@ -295,6 +309,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/supabaseClient.js?v=2026102301"></script>
 <script src="js/acesso.js?v=7"></script>
-<script src="js/brigadistas.js?v=2026102301"></script>
+<script src="js/brigadistas.js?v=2026102303"></script>
 </body>
 </html>

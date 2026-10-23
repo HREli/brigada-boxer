@@ -102,6 +102,21 @@ function setupTabs() {
 }
 
 // ---------------- Carregamento ----------------
+// Quem já tem CPF + data de nascimento cadastrados (só líderes consultam; os dados não vêm para a tela)
+let statusAcesso = null;
+async function carregarStatusAcesso() {
+  try {
+    await acessoPronto;
+    if (!acesso.editor) return;
+    const { data, error } = await supabaseClient.functions.invoke("acesso", { body: { acao: "identificacao_status" } });
+    if (error || !data || !data.status) return;
+    statusAcesso = Object.fromEntries(data.status.map((x) => [x.brigadista_id, x.completo]));
+    renderTabela();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
 async function carregarColaboradores() {
   if (!CONFIGURADO) return;
   try {
@@ -120,6 +135,7 @@ async function carregarColaboradores() {
   renderOrgChart();
   renderTabela();
   renderAreas();
+  carregarStatusAcesso();
 }
 
 function brigadistasAtivos() {
@@ -324,7 +340,7 @@ function renderTabela() {
           : c.data_entrada && c.e_brigadista
           ? `<div class="small text-muted">Na brigada desde ${formatarDataBR(c.data_entrada)}</div>`
           : ""
-      }</td>
+      }${statusAcesso && c.ativo && !statusAcesso[c.id] ? '<div><span class="badge badge-warn" title="Falta CPF e data de nascimento para entrar no app">sem acesso ao app</span></div>' : ""}</td>
       <td>${escHtml(c.vinculo || "-")}</td>
       <td>${escHtml(c.area || "-")}<div class="small text-muted">${escHtml(c.departamento || "")}</div></td>
       <td>${escHtml(c.piso || "-")}</td>
@@ -370,6 +386,11 @@ function setupModal() {
   });
   document.getElementById("campo-brigadista").addEventListener("change", atualizarCamposBrigada);
   document.getElementById("campo-ativo").addEventListener("change", atualizarCampoSaida);
+  const cpfIn = document.getElementById("campo-cpf");
+  cpfIn.addEventListener("input", () => {
+    const d = cpfIn.value.replace(/\D/g, "").slice(0, 11);
+    cpfIn.value = d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  });
   // Ao escolher um nome da lista de colaboradores, preenche área, departamento e localização
   document.getElementById("campo-nome").addEventListener("change", (e) => {
     if (document.getElementById("colab-id").value) return;
@@ -425,6 +446,12 @@ function abrirModal(id, paraSaida = false) {
   document.getElementById("campo-depto").value = c ? c.departamento || "" : "";
   document.getElementById("campo-ativo").checked = c ? c.ativo && !paraSaida : true;
   document.getElementById("campo-entrada").value = c ? c.data_entrada || "" : hojeISOLocal();
+  document.getElementById("campo-cpf").value = "";
+  document.getElementById("campo-nasc").value = "";
+  const st = document.getElementById("acesso-status");
+  const temAcesso = c && statusAcesso && statusAcesso[c.id];
+  st.textContent = temAcesso ? "✓ cadastrado" : "falta cadastrar";
+  st.className = "badge " + (temAcesso ? "badge-ok" : "badge-warn");
   document.getElementById("campo-saida").value = c && !c.ativo ? c.data_saida || "" : "";
   document.getElementById("campo-motivo").value = c && !c.ativo ? c.motivo_saida || "" : "";
   atualizarCampoSaida();
@@ -458,6 +485,9 @@ async function salvarColaborador() {
   const ativoForm = document.getElementById("campo-ativo").checked;
   const dataSaida = document.getElementById("campo-saida").value || null;
   if (!ativoForm && !dataSaida) return showToast("Informe a data de saída.", "error");
+  const cpfDig = document.getElementById("campo-cpf").value.replace(/\D/g, "");
+  const nascForm = document.getElementById("campo-nasc").value;
+  if ((cpfDig || nascForm) && (cpfDig.length !== 11 || !nascForm)) return showToast("Para o acesso ao app, informe o CPF completo e a data de nascimento.", "error");
   if (eBrig && (!cargo || !funcao)) return showToast("Para brigadista, escolha o cargo e a função.", "error");
 
   const duplicado = colaboradores.find((c) => c.id !== id && normalizarNome(c.nome) === normalizarNome(nome));
@@ -493,11 +523,24 @@ async function salvarColaborador() {
       payload.foto_url = await uploadArquivo(BUCKET_FOTOS, reduzida, "colaboradores/");
     }
     const q = id
-      ? supabaseClient.from("brigadistas").update(payload).eq("id", id)
-      : supabaseClient.from("brigadistas").insert(payload);
-    const { error } = await q;
+      ? supabaseClient.from("brigadistas").update(payload).eq("id", id).select("id").single()
+      : supabaseClient.from("brigadistas").insert(payload).select("id").single();
+    const { data: salvo, error } = await q;
     if (error) throw error;
-    showToast("Salvo com sucesso!", "success");
+    let aviso = "";
+    if (cpfDig && nascForm) {
+      const r = await supabaseClient.functions.invoke("acesso", { body: { acao: "salvar_identificacao", brigadista_id: (salvo && salvo.id) || id, cpf: cpfDig, nascimento: nascForm } });
+      let msg = r.data && r.data.erro;
+      if (r.error) {
+        try {
+          msg = (await r.error.context.json()).erro;
+        } catch (e) {
+          msg = "não foi possível salvar o acesso ao app";
+        }
+      }
+      if (msg) aviso = " Atenção: " + msg;
+    }
+    showToast("Salvo com sucesso!" + aviso, aviso ? "error" : "success");
     fecharModal();
     await carregarColaboradores();
   } catch (err) {
