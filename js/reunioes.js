@@ -621,19 +621,30 @@ async function gerarPdfAta(ataId) {
       secao("Ausentes:");
       tabela(["Nome", "Função", "Motivo"], ausentes.map((a) => [a.brigadista.nome, a.brigadista.funcao || a.brigadista.cargo || "-", a.justificativa || "-"]));
     }
-    secao("Assinatura dos presentes:");
-    doc.autoTable({
-      startY: y + 2,
-      head: [["Nome", "Assinatura"]],
-      body: presentes.map((b) => [b.nome, ""]),
-      theme: "grid",
-      // linhas altas para caber a assinatura (inclusive assinatura digital)
-      styles: { fontSize: 10, minCellHeight: 22, valign: "middle", lineColor: [190, 190, 190], lineWidth: 0.2 },
-      columnStyles: { 0: { cellWidth: 72, textColor: [39, 38, 38] } },
-      rowPageBreak: "avoid",
-      headStyles: { ...CORES_TABELA_PDF, minCellHeight: 8 },
-      margin: { left: marginX, right: marginX, bottom: 16 },
-    });
+    secao("Participantes presentes:");
+    tabela(["Nº", "Nome", "Função"], presentes.map((b, k) => [String(k + 1), b.nome, b.funcao || b.cargo || "-"]));
+    // Assinaturas pela plataforma D4Sign
+    if (y > 250) {
+      doc.addPage();
+      y = 18;
+    }
+    const alturaCaixa = 24;
+    doc.setFillColor(246, 246, 246);
+    doc.rect(marginX, y, contentWidth, alturaCaixa, "F");
+    doc.setFillColor(...COR_MARCA);
+    doc.rect(marginX, y, 1.6, alturaCaixa, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...COR_ESCURA);
+    doc.text("Assinaturas eletrônicas registradas no certificado D4Sign", marginX + 6, y + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.8);
+    doc.setTextColor(80, 80, 80);
+    doc.splitTextToSize(
+      `Esta ATA é assinada eletronicamente pelos ${presentes.length} participantes presentes por meio da plataforma D4Sign. O certificado de assinaturas, com nome, data, hora e código de verificação de cada signatário, acompanha este documento.`,
+      contentWidth - 12
+    ).forEach((l, k) => doc.text(l, marginX + 6, y + 14 + k * 4.2));
+    y += alturaCaixa + 6;
   }
 
   rodapePdf(doc);
