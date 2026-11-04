@@ -72,7 +72,7 @@ async function carregar() {
     const fim = `${ano + 1}-08-31`;
     const [ag, at, ev] = await Promise.all([
       supabaseClient.from("reunioes_agenda").select("*").gte("mes", `${ano}-08-01`).lte("mes", fim),
-      supabaseClient.from("atas").select("id,tipo,data_reuniao,arquivo_assinado_url").gte("data_reuniao", ini).lte("data_reuniao", fim),
+      supabaseClient.from("atas").select("id,tipo,data_reuniao,arquivo_assinado_url,extraordinaria,motivo").gte("data_reuniao", ini).lte("data_reuniao", fim),
       supabaseClient.from("calendario_eventos").select("*").lte("data_inicio", fim).order("data_inicio"),
     ]);
     eventos = (ev.data || []).filter((e) => (e.data_fim || e.data_inicio) >= `${ano}-08-01`);
@@ -113,7 +113,7 @@ function programacao(m) {
     situacaoAgenda: exG ? exG.situacao : "Agendada",
   };
   // ATA geral do mês: a mais próxima da data prevista
-  const atasG = atas.filter((a) => a.tipo === "Geral" && a.data_reuniao.slice(0, 7) === mesRef(m).slice(0, 7));
+  const atasG = atas.filter((a) => a.tipo === "Geral" && !a.extraordinaria && a.data_reuniao.slice(0, 7) === mesRef(m).slice(0, 7));
   geral.ata = atasG.sort((a, b) => Math.abs(deISO(a.data_reuniao) - deISO(geral.prevista)) - Math.abs(deISO(b.data_reuniao) - deISO(geral.prevista)))[0] || null;
 
   const exL = excecao("Lideres", m);
@@ -161,129 +161,165 @@ function eventosDoMes(m) {
   return eventos.filter((e) => e.data_inicio <= fim && (e.data_fim || e.data_inicio) >= ini);
 }
 
+const MES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const CLASSE_CEL = { realizada: "ok", prevista: "prev", atrasada: "atr", cinza: "cinza" };
+let celulaAberta = null; // { linha, m }
+
+function extrasDoMes(m) {
+  const ym = mesRef(m).slice(0, 7);
+  return atas.filter((a) => a.tipo === "Geral" && a.extraordinaria && a.data_reuniao.slice(0, 7) === ym).sort((a, b) => a.data_reuniao.localeCompare(b.data_reuniao));
+}
+const dia = (s) => (s ? s.slice(8, 10) + "/" + s.slice(5, 7) : "");
+function contagem(ataId) {
+  const ps = presencas.filter((p) => p.ata_id === ataId);
+  const np = ps.filter((p) => p.presente).length;
+  return { total: ps.length, np, na: ps.length - np };
+}
+
+// ---------------- Render (grade do ano) ----------------
 function render() {
   const progs = periodo.map((_, k) => programacao(k));
   renderResumo(progs);
-  const linhas = [];
-  progs.forEach((p, m) => {
-    const ehInicio = mesRef(m).slice(0, 7) === INICIO_GESTAO.slice(0, 7);
-    const antes = mesRef(m).slice(0, 7) < INICIO_GESTAO.slice(0, 7);
-    const itens = [];
-    eventosDoMes(m).forEach((e) => itens.push(linhaEvento(e)));
-    if (!antes) {
-      if (!ehInicio) itens.push(linhaReuniao(p.lideres, m));
-      itens.push(linhaReuniao(p.geral, m));
-    }
-    if (!itens.length) return;
-    const atual = hojeD.getFullYear() === A(m) && hojeD.getMonth() === M(m);
-    itens.forEach((html, k) => {
-      const celMes = k === 0 ? `<td class="cal-mes" rowspan="${itens.length}">${MESES[M(m)]}<span>${A(m)}</span>${atual ? '<em>mês atual</em>' : ""}</td>` : "";
-      linhas.push(html.replace('<tr class="', `<tr data-mes="${m}" class="${atual ? "cal-atual " : ""}${k === 0 ? "cal-primeira " : ""}`).replace("<!--MES-->", celMes));
-    });
-  });
-  document.getElementById("meses").innerHTML = `<div class="table-wrap"><table class="cal-tabela">
-    <thead><tr>
-      <th>Mês</th><th>Reunião / atividade</th><th>Data</th><th class="col-centro">Situação</th>
-      <th class="col-centro">Realizada</th><th class="col-centro">Presentes</th><th class="col-centro">Ausentes</th>
-      <th class="col-centro">ATA assinada</th><th>Observação</th><th class="col-centro"></th>
-    </tr></thead>
-    <tbody>${linhas.join("")}</tbody></table></div>`;
-
-  document.querySelectorAll(".btn-editar-ag").forEach((b) => b.addEventListener("click", () => abrirModal(b.dataset.tipo, +b.dataset.mes)));
-  document.querySelectorAll(".chk-realizada").forEach((c) => c.addEventListener("change", () => marcarRealizada(c)));
-  document.querySelectorAll(".num-pres").forEach((b) => b.addEventListener("click", () => abrirNomes(b)));
+  const linhas = [
+    { chave: "lideres", nome: "Reunião de Líderes", sub: "7 a 10 dias antes da Geral" },
+    { chave: "geral", nome: "Reunião Geral", sub: "3ª quarta-feira do mês" },
+    { chave: "extra", nome: "Extraordinárias", sub: "fora do calendário" },
+    { chave: "eventos", nome: "Outras atividades", sub: "treinamentos, simulados…" },
+  ];
+  const cab = periodo
+    .map((_, m) => {
+      const atual = hojeD.getFullYear() === A(m) && hojeD.getMonth() === M(m);
+      return `<th class="${atual ? "g-atual" : ""}">${MES_CURTO[M(m)]}<span>${String(A(m)).slice(2)}</span></th>`;
+    })
+    .join("");
+  const corpo = linhas
+    .map((l) => {
+      const cels = periodo.map((_, m) => `<td class="g-td ${hojeD.getFullYear() === A(m) && hojeD.getMonth() === M(m) ? "g-atual" : ""}">${celula(l.chave, progs[m], m)}</td>`).join("");
+      return `<tr class="g-linha g-${l.chave}"><th class="g-rot">${l.nome}<small>${l.sub}</small></th>${cels}</tr>`;
+    })
+    .join("");
+  document.getElementById("meses").innerHTML = `<div class="table-wrap"><table class="cal-grade">
+      <thead><tr><th class="g-rot">Atividade</th>${cab}</tr></thead>
+      <tbody>${corpo}</tbody></table></div>
+    <div id="cal-detalhe" class="cal-detalhe" style="display:none;"></div>`;
+  document.querySelectorAll(".g-cel[data-linha]").forEach((b) => b.addEventListener("click", () => abrirDetalhe(b.dataset.linha, +b.dataset.mes)));
+  if (celulaAberta) abrirDetalhe(celulaAberta.linha, celulaAberta.m, true);
 }
 
-function linhaReuniao(r, m) {
-  const st = statusDe(r);
-  const nome = r.tipo === "Geral" ? "Reunião Geral" : "Reunião de Líderes";
-  let quando;
-  if (st.data) quando = fmt(st.data);
-  else if (r.tipo === "Lideres" && st.rotulo === "A combinar") quando = `<span class="text-muted">a combinar<br><small>entre ${formatarDataBR(r.janelaIni).slice(0, 5)} e ${formatarDataBR(r.janelaFim).slice(0, 5)}</small></span>`;
-  else quando = "—";
-  const remarcada = r.tipo === "Geral" && r.prevista !== r.padrao && !r.ata && st.chave !== "realizada" ? ' <span class="tag-remarcada">remarcada</span>' : "";
+function foraDaGestao(m, linha) {
+  const ym = mesRef(m).slice(0, 7);
+  const ini = INICIO_GESTAO.slice(0, 7);
+  if (ym < ini) return true;
+  return linha === "lideres" && ym === ini; // 1º mês: sem reunião de líderes (semana de treinamento)
+}
 
-  // caixinha "realizada": marcada sozinha quando existe ATA; sem ATA, pode ser marcada à mão
-  const feita = st.chave === "realizada";
-  const chk = r.ata
-    ? `<input type="checkbox" class="chk-cal" checked disabled title="Realizada — ATA registrada no sistema" />`
-    : `<input type="checkbox" class="chk-cal chk-realizada" data-tipo="${r.tipo}" data-mes="${m}" ${feita ? "checked" : ""} title="Marque quando a reunião acontecer" />`;
-
-  let presentes = '<span class="text-muted">—</span>';
-  let ausentes = '<span class="text-muted">—</span>';
-  let assinada = '<span class="text-muted">—</span>';
-  let sub = "";
-  if (r.ata) {
-    const ps = presencas.filter((p) => p.ata_id === r.ata.id);
-    const np = ps.filter((p) => p.presente).length;
-    const na = ps.length - np;
-    const alvo = `pres-${r.tipo}-${m}`;
-    if (ps.length) {
-      presentes = `<button class="num-pres ok" data-ata="${r.ata.id}" data-modo="presentes" data-alvo="${alvo}"><b>${np}</b> ▾</button>`;
-      ausentes = `<button class="num-pres ${na ? "falta" : ""}" data-ata="${r.ata.id}" data-modo="ausentes" data-alvo="${alvo}"><b>${na}</b> ▾</button>`;
-      sub = `<tr class="cal-nomes" id="${alvo}" style="display:none;"><td colspan="9"><div class="pres-lista"></div></td></tr>`;
+function celula(linha, p, m) {
+  const btn = (cls, html, titulo) => `<button type="button" class="g-cel ${cls}" data-linha="${linha}" data-mes="${m}" title="${escHtml(titulo)}">${html}</button>`;
+  if (linha === "lideres" || linha === "geral") {
+    if (foraDaGestao(m, linha)) return '<span class="g-vazio">—</span>';
+    const r = linha === "geral" ? p.geral : p.lideres;
+    const st = statusDe(r);
+    let sub = st.rotulo;
+    if (r.ata) {
+      const c = contagem(r.ata.id);
+      if (c.total) sub = `${c.np}✓${c.na ? " " + c.na + "✗" : ""}`;
+      if (linha === "geral") sub += r.ata.arquivo_assinado_url ? " 📎" : "";
     }
-    if (r.tipo === "Geral")
-      assinada = r.ata.arquivo_assinado_url
-        ? `<a href="${escHtml(r.ata.arquivo_assinado_url)}" target="_blank" title="Abrir ATA assinada">📎 Sim</a>`
-        : '<span class="badge badge-warn">Pendente</span>';
-  } else if (st.foraDoSistema) {
-    presentes = ausentes = '<span class="small text-muted">sem lista</span>';
+    let quando = st.data ? dia(st.data) : "—";
+    if (!st.data && st.rotulo === "A combinar") {
+      quando = "a combinar";
+      sub = r.janelaIni.slice(5, 7) === r.janelaFim.slice(5, 7) ? `${r.janelaIni.slice(8, 10)} a ${dia(r.janelaFim)}` : `${dia(r.janelaIni)}–${dia(r.janelaFim)}`;
+    } else if (!st.data && st.rotulo === "Não registrada") sub = "sem registro";
+    return btn(CLASSE_CEL[st.chave], `${quando}<small>${sub}</small>`, `${linha === "geral" ? "Reunião Geral" : "Reunião de Líderes"} — ${st.rotulo}. Clique para ver detalhes.`);
   }
-  const obs = r.excecao && r.excecao.observacao ? escHtml(r.excecao.observacao) : "";
-  const link = r.tipo === "Geral" ? "reuniao-geral.html" : "reuniao-lideres.html";
-  const acao = r.ata
-    ? `<a class="btn-mini" href="${link}" title="Abrir a reunião">↗</a>`
-    : `<button class="btn-mini btn-editar-ag" data-tipo="${r.tipo}" data-mes="${m}" title="Remarcar / exceção">✏️</button>`;
-  return `<tr class="cal-linha tipo-${r.tipo.toLowerCase()}"><!--MES-->
-    <td class="cal-nome"><i class="pt ${st.chave}"></i>${nome}${remarcada}</td>
-    <td class="cal-data">${quando}</td>
-    <td class="col-centro"><span class="badge st-badge-${st.chave}">${st.rotulo}</span></td>
-    <td class="col-centro">${chk}</td>
-    <td class="col-centro">${presentes}</td>
-    <td class="col-centro">${ausentes}</td>
-    <td class="col-centro">${assinada}</td>
-    <td class="cal-obs">${obs}</td>
-    <td class="col-centro">${acao}</td>
-  </tr>${sub}`;
+  if (linha === "extra") {
+    const ex = extrasDoMes(m);
+    if (!ex.length) return '<span class="g-vazio">·</span>';
+    return btn("extra", ex.map((a) => dia(a.data_reuniao)).join("<br>") + `<small>${ex.length > 1 ? ex.length + " reuniões" : "realizada"}</small>`, "Reunião extraordinária. Clique para ver detalhes.");
+  }
+  const evs = eventosDoMes(m);
+  if (!evs.length) return '<span class="g-vazio">·</span>';
+  return btn("ev", evs.map((e) => `${ICONE_EVENTO[e.categoria] || "📌"} ${dia(e.data_inicio)}`).join("<br>") + `<small>${evs.length > 1 ? evs.length + " atividades" : escHtml(e0(evs))}</small>`, evs.map((e) => e.titulo).join(" · "));
+}
+const e0 = (evs) => (evs[0].titulo.length > 14 ? evs[0].titulo.slice(0, 13) + "…" : evs[0].titulo);
+
+// ---------------- Detalhe do quadrinho ----------------
+function listaNomes(ataId, presente) {
+  const l = presencas
+    .filter((p) => p.ata_id === ataId && p.presente === presente && p.brigadista && p.brigadista.nome)
+    .sort((a, b) => a.brigadista.nome.localeCompare(b.brigadista.nome));
+  if (!l.length) return '<span class="small text-muted">Ninguém.</span>';
+  return l.map((p) => `<span class="pessoa-chip ${presente ? "" : "ausente"}">${escHtml(p.brigadista.nome)}${!presente && p.justificativa ? ` <i>— ${escHtml(p.justificativa)}</i>` : ""}</span>`).join("");
 }
 
-function linhaEvento(e) {
-  const quando =
-    e.data_fim && e.data_fim !== e.data_inicio ? `${formatarDataBR(e.data_inicio).slice(0, 5)} a ${formatarDataBR(e.data_fim)}` : fmt(e.data_inicio);
-  const feito = (e.data_fim || e.data_inicio) < hojeISOLocal();
-  return `<tr class="cal-linha cal-evento"><!--MES-->
-    <td class="cal-nome"><span class="ev-icone">${ICONE_EVENTO[e.categoria] || "📌"}</span>${escHtml(e.titulo)}</td>
-    <td class="cal-data">${quando}</td>
-    <td class="col-centro"><span class="badge ${feito ? "st-badge-realizada" : "st-badge-prevista"}">${feito ? "Realizado" : "Previsto"}</span></td>
-    <td class="col-centro"><input type="checkbox" class="chk-cal" ${feito ? "checked" : ""} disabled title="Atividade do cronograma" /></td>
-    <td class="col-centro"><span class="text-muted">—</span></td>
-    <td class="col-centro"><span class="text-muted">—</span></td>
-    <td class="col-centro"><span class="text-muted">—</span></td>
-    <td class="cal-obs">${e.observacao ? escHtml(e.observacao) : ""}</td>
-    <td></td>
-  </tr>`;
+function blocoAta(ata, link) {
+  const c = contagem(ata.id);
+  const assinada =
+    ata.tipo === "Geral"
+      ? ata.arquivo_assinado_url
+        ? `<a href="${escHtml(ata.arquivo_assinado_url)}" target="_blank">📎 Abrir ATA assinada</a>`
+        : '<span class="badge badge-warn">ATA assinada pendente</span>'
+      : "";
+  return `<div class="det-linha"><b>ATA:</b> registrada em ${fmt(ata.data_reuniao)} ${assinada ? " · " + assinada : ""} · <a href="${link}">↗ abrir a reunião</a></div>
+    ${c.total ? `<div class="det-nomes"><b class="small">Presentes (${c.np}):</b> ${listaNomes(ata.id, true)}</div>
+    <div class="det-nomes"><b class="small">Ausentes (${c.na}):</b> ${listaNomes(ata.id, false)}</div>` : '<div class="small text-muted">Sem lista de presença no sistema.</div>'}`;
 }
 
-function abrirNomes(b) {
-  const linha = document.getElementById(b.dataset.alvo);
-  const alvo = linha.querySelector(".pres-lista");
-  const aberto = linha.dataset.modo === b.dataset.modo && linha.style.display !== "none";
-  if (aberto) return (linha.style.display = "none");
-  const lista = presencas
-    .filter((p) => p.ata_id === b.dataset.ata && p.presente === (b.dataset.modo === "presentes"))
-    .map((p) => ({ ...p.brigadista, justificativa: p.justificativa }))
-    .filter((x) => x.nome)
-    .sort((a, c) => a.nome.localeCompare(c.nome));
-  linha.dataset.modo = b.dataset.modo;
-  linha.style.display = "table-row";
-  alvo.innerHTML =
-    `<b class="small">${b.dataset.modo === "presentes" ? "Presentes" : "Ausentes"}:</b> ` +
-    (lista.length
-      ? lista
-          .map((x) => `<span class="pessoa-chip ${b.dataset.modo === "ausentes" ? "ausente" : ""}">${escHtml(x.nome)}${b.dataset.modo === "ausentes" && x.justificativa ? ` <i>— ${escHtml(x.justificativa)}</i>` : ""}</span>`)
-          .join("")
-      : '<span class="small text-muted">Ninguém.</span>');
+function abrirDetalhe(linha, m, manter) {
+  const box = document.getElementById("cal-detalhe");
+  if (!manter && celulaAberta && celulaAberta.linha === linha && celulaAberta.m === m) {
+    celulaAberta = null;
+    box.style.display = "none";
+    document.querySelectorAll(".g-cel.sel").forEach((x) => x.classList.remove("sel"));
+    return;
+  }
+  celulaAberta = { linha, m };
+  document.querySelectorAll(".g-cel.sel").forEach((x) => x.classList.remove("sel"));
+  const alvo = document.querySelector(`.g-cel[data-linha="${linha}"][data-mes="${m}"]`);
+  if (alvo) alvo.classList.add("sel");
+  const p = programacao(m);
+  const mesTxt = `${MESES[M(m)]} ${A(m)}`;
+  let titulo = "";
+  let html = "";
+  if (linha === "lideres" || linha === "geral") {
+    const r = linha === "geral" ? p.geral : p.lideres;
+    const st = statusDe(r);
+    titulo = `${linha === "geral" ? "Reunião Geral" : "Reunião de Líderes"} — ${mesTxt}`;
+    const link = linha === "geral" ? "reuniao-geral.html" : "reuniao-lideres.html";
+    let quando = st.data ? fmt(st.data) : r.tipo === "Lideres" && st.rotulo === "A combinar" ? `a combinar, entre ${fmt(r.janelaIni)} e ${fmt(r.janelaFim)}` : "—";
+    const remarcada = r.tipo === "Geral" && r.prevista !== r.padrao && !r.ata ? ` <span class="tag-remarcada">remarcada (padrão: ${fmt(r.padrao)})</span>` : "";
+    html += `<div class="det-linha"><span class="badge st-badge-${st.chave}">${st.rotulo}</span> <b>Data:</b> ${quando}${remarcada}</div>`;
+    if (r.excecao && r.excecao.observacao) html += `<div class="det-linha"><b>Observação:</b> ${escHtml(r.excecao.observacao)}</div>`;
+    if (r.ata) html += blocoAta(r.ata, link);
+    else {
+      const feita = st.chave === "realizada";
+      html += `<div class="det-acoes">
+        <label class="det-chk"><input type="checkbox" class="chk-cal chk-realizada" data-tipo="${r.tipo}" data-mes="${m}" ${feita ? "checked" : ""} /> Realizada (sem ATA no sistema)</label>
+        <button class="btn btn-secondary btn-editar-ag" data-tipo="${r.tipo}" data-mes="${m}">✏️ Remarcar / exceção</button>
+        <a class="btn btn-outline" href="${link}">↗ Ir para a reunião</a>
+      </div>`;
+    }
+  } else if (linha === "extra") {
+    titulo = `Reuniões extraordinárias — ${mesTxt}`;
+    html = extrasDoMes(m)
+      .map((a) => `<div class="det-bloco"><div class="det-linha"><span class="badge badge-extra">Extraordinária</span> <b>${fmt(a.data_reuniao)}</b>${a.motivo ? ` · <b>Motivo:</b> ${escHtml(a.motivo)}` : ""}</div>${blocoAta(a, "reuniao-geral.html")}</div>`)
+      .join("");
+  } else {
+    titulo = `Outras atividades — ${mesTxt}`;
+    html = eventosDoMes(m)
+      .map((e) => {
+        const quando = e.data_fim && e.data_fim !== e.data_inicio ? `${formatarDataBR(e.data_inicio)} a ${formatarDataBR(e.data_fim)}` : fmt(e.data_inicio);
+        const feito = (e.data_fim || e.data_inicio) < hojeISOLocal();
+        return `<div class="det-bloco"><div class="det-linha">${ICONE_EVENTO[e.categoria] || "📌"} <b>${escHtml(e.titulo)}</b> · ${quando} <span class="badge ${feito ? "st-badge-realizada" : "st-badge-prevista"}">${feito ? "Realizado" : "Previsto"}</span></div>${e.observacao ? `<div class="small text-muted">${escHtml(e.observacao)}</div>` : ""}</div>`;
+      })
+      .join("");
+  }
+  box.innerHTML = `<div class="row justify-between"><h3 style="margin:0;">${titulo}</h3><button class="modal-close" id="det-fechar" title="Fechar">✕</button></div><div class="mt-16">${html}</div>`;
+  box.style.display = "block";
+  box.querySelector("#det-fechar").addEventListener("click", () => abrirDetalhe(linha, m));
+  box.querySelectorAll(".btn-editar-ag").forEach((b) => b.addEventListener("click", () => abrirModal(b.dataset.tipo, +b.dataset.mes)));
+  box.querySelectorAll(".chk-realizada").forEach((c) => c.addEventListener("change", () => marcarRealizada(c)));
+  if (!manter) box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // Caixinha "Realizada" (reuniões sem ATA no sistema)
@@ -326,10 +362,12 @@ function renderResumo(progs) {
     totT += ps.length;
   });
   const prox = gerais.find((g) => g.st.chave === "prevista");
+  const nExtra = atas.filter((a) => a.tipo === "Geral" && a.extraordinaria && a.data_reuniao >= INICIO_GESTAO).length;
   document.getElementById("resumo-ano").innerHTML = `
     <div class="indicator-card concluida"><div class="value">${realizadas.length}<span class="de">/${devidas.length || 0}</span></div><div class="label">Reuniões gerais realizadas</div></div>
     <div class="indicator-card total"><div class="value">${lid}</div><div class="label">Reuniões de líderes</div></div>
-    <div class="indicator-card andamento"><div class="value">${totT ? Math.round((presT / totT) * 100) + "%" : "-"}</div><div class="label">Presença média (gerais)</div></div>
+    <div class="indicator-card"><div class="value" style="color:#7e22ce;">${nExtra}</div><div class="label">Reuniões extraordinárias</div></div>
+    <div class="indicator-card andamento"><div class="value">${totT ? Math.round((presT / totT) * 100) + "%" : "-"}</div><div class="label">Presença média (gerais ordinárias)</div></div>
     <div class="indicator-card"><div class="value" style="font-size:1.25rem;color:var(--grafite);">${prox ? fmt(prox.prevista) : "-"}</div><div class="label">Próxima reunião geral</div></div>`;
 }
 

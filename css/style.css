@@ -863,3 +863,40 @@ html.na-portaria .topbar, html.na-portaria .container { display: none !important
 #modal-acesso { z-index: 1000; }
 .box-saida { background: #fff5f5; border: 1px solid #f3c9c9; border-radius: 10px; padding: 12px 14px; margin-top: 4px; }
 .box-acesso { background: #f6f8fb; border: 1px solid #dbe3ec; border-radius: 10px; padding: 12px 14px; margin-top: 4px; }
+
+/* Reunião extraordinária */
+.badge-extra { background: #f3e8ff; color: #7e22ce; }
+.extra-chk { display: flex; align-items: center; gap: 8px; font-weight: 400 !important; cursor: pointer; padding: 10px 0; }
+.extra-chk input { width: 18px; height: 18px; accent-color: #7e22ce; }
+
+/* Calendário — grade do ano */
+.pt.extra { background: #a855f7; }
+.pt.ev { background: #f97316; }
+.cal-grade { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; table-layout: fixed; min-width: 1100px; }
+.cal-grade thead th { background: var(--grafite); color: #fff; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .5px; padding: 9px 4px; text-align: center; }
+.cal-grade thead th span { display: block; font-weight: 400; opacity: .7; font-size: .68rem; }
+.cal-grade thead th.g-atual { background: var(--brand-red); }
+.cal-grade th.g-rot { width: 170px; text-align: left; padding: 10px 12px; }
+.cal-grade tbody th.g-rot { background: #fafafa; color: var(--grafite); font-size: .82rem; border-bottom: 1px solid #eceef1; }
+.cal-grade tbody th.g-rot small { display: block; font-weight: 400; color: var(--text-muted); font-size: .7rem; text-transform: none; letter-spacing: 0; }
+.cal-grade td.g-td { padding: 6px 3px; text-align: center; border-bottom: 1px solid #eceef1; vertical-align: middle; }
+.cal-grade td.g-atual { background: #fff6f6; }
+.g-cel { width: 100%; border: 2px solid transparent; border-radius: 8px; padding: 6px 2px; font: inherit; font-weight: 700; font-size: .78rem; line-height: 1.25; cursor: pointer; transition: transform .1s, box-shadow .1s; }
+.g-cel small { display: block; font-weight: 500; font-size: .68rem; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-cel:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.12); }
+.g-cel.sel { border-color: var(--grafite); }
+.g-cel.ok { background: #dcfce7; color: #15803d; }
+.g-cel.prev { background: #dbeafe; color: #1d4ed8; }
+.g-cel.atr { background: #fee2e2; color: #b91c1c; }
+.g-cel.cinza { background: #eceef1; color: #6b7280; }
+.g-cel.extra { background: #f3e8ff; color: #7e22ce; }
+.g-cel.ev { background: #fff7ed; color: #c2410c; }
+.g-vazio { color: #c4c8cf; }
+.cal-detalhe { border-top: 3px solid var(--brand-red); padding: 18px 20px; background: #fff; }
+.det-linha { margin: 6px 0; }
+.det-nomes { margin: 8px 0; line-height: 2; }
+.det-bloco { padding: 10px 0; border-bottom: 1px dashed #e5e7eb; }
+.det-bloco:last-child { border-bottom: 0; }
+.det-acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+.det-chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+.det-nomes .pessoa-chip { display: inline-block; white-space: nowrap; margin: 2px 2px; }

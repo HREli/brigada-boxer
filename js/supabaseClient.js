@@ -203,8 +203,10 @@ async function cabecalhoPdf(doc, titulo, linhas = []) {
   doc.setFont("helvetica", "normal");
   doc.setTextColor(40, 40, 40);
   linhas.forEach((l) => {
-    doc.text(l, pageWidth / 2, y, { align: "center" });
-    y += 5.5;
+    doc.splitTextToSize(l, pageWidth - 40).forEach((parte) => {
+      doc.text(parte, pageWidth / 2, y, { align: "center" });
+      y += 5.5;
+    });
   });
   return y + 4;
 }

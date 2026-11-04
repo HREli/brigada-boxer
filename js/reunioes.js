@@ -252,6 +252,7 @@ async function salvarAta() {
   const data_reuniao = document.getElementById("ata-data").value;
   const conteudo = MODO_REUNIAO ? montarConteudoAta() : document.getElementById("ata-conteudo").value.trim();
   if (!data_reuniao) return showToast("Preencha a data da reunião.", "error");
+  if (MODO_REUNIAO && ehExtra() && !motivoExtra()) return showToast("Informe o motivo da reunião extraordinária.", "error");
   if (MODO_REUNIAO && !temRegistro()) return showToast("Registre a discussão ou a decisão de pelo menos um assunto.", "error");
   if (!conteudo) return showToast("Preencha a data e o conteúdo da reunião.", "error");
 
@@ -264,7 +265,7 @@ async function salvarAta() {
   btn.disabled = true;
   btn.textContent = "Salvando...";
   try {
-    const { data: ata, error: ataError } = await supabaseClient.from("atas").insert({ data_reuniao, conteudo, tipo: TIPO }).select().single();
+    const { data: ata, error: ataError } = await supabaseClient.from("atas").insert({ data_reuniao, conteudo, tipo: TIPO, ...(MODO_REUNIAO ? { extraordinaria: ehExtra(), motivo: ehExtra() ? motivoExtra() : null } : {}) }).select().single();
     if (ataError) throw ataError;
 
     if (itens.length) {
@@ -416,7 +417,8 @@ async function carregarHistorico() {
       card.innerHTML = `
         <div class="row justify-between">
           <div>
-            <h3 style="margin:0 0 4px;">${TIPO === "Geral" ? "Reunião Geral" : "Reunião de Líderes"} de ${formatarDataBR(ata.data_reuniao)}</h3>
+            <h3 style="margin:0 0 4px;">${nomeReuniao(ata)} de ${formatarDataBR(ata.data_reuniao)} ${ata.extraordinaria ? '<span class="badge badge-extra">Extraordinária</span>' : ""}</h3>
+            ${ata.extraordinaria && ata.motivo ? `<p class="small" style="margin:0 0 2px;"><b>Motivo:</b> ${escHtml(ata.motivo)}</p>` : ""}
             <p class="text-muted small" style="margin:0;">${resumo}</p>
           </div>
           <div class="row">${botoes}</div>
@@ -549,9 +551,10 @@ async function gerarPdfAta(ataId) {
   const marginX = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
   const contentWidth = pageWidth - marginX * 2;
-  const titulo = TIPO === "Geral" ? "ATA DA REUNIÃO GERAL DA BRIGADA" : "ATA DA REUNIÃO DE LÍDERES DA BRIGADA";
+  const titulo = TIPO !== "Geral" ? "ATA DA REUNIÃO DE LÍDERES DA BRIGADA" : ata.extraordinaria ? "ATA DA REUNIÃO EXTRAORDINÁRIA DA BRIGADA" : "ATA DA REUNIÃO GERAL DA BRIGADA";
   let y = await cabecalhoPdf(doc, titulo, [
     "Data da reunião: " + formatarDataBR(ata.data_reuniao),
+    ...(ata.extraordinaria && ata.motivo ? ["Motivo: " + ata.motivo] : []),
     `Presentes: ${presentes.length}   ·   Ausentes: ${ausentes.length}`,
   ]);
 
@@ -648,7 +651,7 @@ async function gerarPdfAta(ataId) {
   }
 
   rodapePdf(doc);
-  doc.save(`ata-${TIPO === "Geral" ? "reuniao-geral" : "reuniao-lideres"}-${ata.data_reuniao}.pdf`);
+  doc.save(`ata-${TIPO !== "Geral" ? "reuniao-lideres" : ata.extraordinaria ? "reuniao-extraordinaria" : "reuniao-geral"}-${ata.data_reuniao}.pdf`);
 }
 
 // =========================================================================
@@ -668,8 +671,42 @@ function lerRascunho() {
   }
 }
 
+function ehExtra() {
+  const c = document.getElementById("ata-extra");
+  return !!(c && c.checked);
+}
+function motivoExtra() {
+  const m = document.getElementById("ata-motivo");
+  return m ? m.value.trim() : "";
+}
+function atualizarBoxMotivo() {
+  const box = document.getElementById("box-motivo");
+  if (box) box.style.display = ehExtra() ? "" : "none";
+}
+function nomeReuniao(ata) {
+  if (TIPO !== "Geral") return "Reunião de Líderes";
+  return ata && ata.extraordinaria ? "Reunião Extraordinária" : "Reunião Geral";
+}
+
 function iniciarModoReuniao() {
   if (rascunho && rascunho.data) document.getElementById("ata-data").value = rascunho.data;
+  if (rascunho && rascunho.extra) document.getElementById("ata-extra").checked = true;
+  if (rascunho && rascunho.motivo) document.getElementById("ata-motivo").value = rascunho.motivo;
+  atualizarBoxMotivo();
+  document.getElementById("ata-extra").addEventListener("change", (e) => {
+    atualizarBoxMotivo();
+    // extraordinária trata um assunto específico: os itens dos líderes ficam para a próxima Reunião Geral
+    if (e.target.checked) {
+      document.querySelectorAll("#ordem-dia .chk-item-lider").forEach((c) => {
+        if (c.checked) {
+          c.checked = false;
+          c.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+      showToast("Reunião extraordinária: os itens dos líderes foram desmarcados e ficam para a próxima Reunião Geral. Marque algum se ele for tratado hoje.", "info");
+      document.getElementById("ata-motivo").focus();
+    }
+  });
   if (rascunho && rascunho.obs) document.getElementById("ata-obs").value = rascunho.obs;
   ((rascunho && rascunho.novos) || []).forEach((n) => adicionarAssuntoNovo(n));
   document.getElementById("btn-novo-assunto").addEventListener("click", () => {
@@ -909,6 +946,8 @@ function salvarRascunho() {
     ...(rascunho && rascunho.editId ? { editId: rascunho.editId, editData: rascunho.editData, acoesOriginais: rascunho.acoesOriginais || [] } : {}),
     ts: Date.now(),
     data: document.getElementById("ata-data").value,
+    extra: ehExtra(),
+    motivo: motivoExtra(),
     obs: document.getElementById("ata-obs").value,
     presenca: Object.keys(presencaNova).length ? presencaNova : (rascunho && rascunho.presenca) || {},
     cards: { ...((rascunho && rascunho.cards) || {}), ...cards },
@@ -932,6 +971,9 @@ function limparModoReuniao() {
   document.getElementById("novos-assuntos").innerHTML = "";
   document.getElementById("ata-obs").value = "";
   document.getElementById("ata-data").value = hojeISOLocal();
+  document.getElementById("ata-extra").checked = false;
+  document.getElementById("ata-motivo").value = "";
+  atualizarBoxMotivo();
   document.getElementById("previa-ata").open = false;
   mostrarStatusRascunho("");
   mostrarAvisoEdicao();
@@ -1009,6 +1051,8 @@ async function editarAta(ataId) {
       acoesOriginais: ids.filter((id) => [...Object.values(reg.cards || {}), ...(reg.novos || [])].some((c) => (c.acoes || []).some((a) => a.id === id))),
       ts: Date.now(),
       data: ata.data_reuniao,
+      extra: !!ata.extraordinaria,
+      motivo: ata.motivo || "",
       obs: reg.obs || "",
       presenca,
       cards: reg.cards || {},
@@ -1128,7 +1172,7 @@ async function salvarEdicaoAta(data_reuniao, conteudo, itens) {
         : await supabaseClient.from("ata_assinaturas").insert({ ata_id: ataId, brigadista_id: b.id, assinado: false, ...valores });
       if (error) throw error;
     }
-    const { error: eAta } = await supabaseClient.from("atas").update({ data_reuniao, conteudo, registro: registroAtual() }).eq("id", ataId);
+    const { error: eAta } = await supabaseClient.from("atas").update({ data_reuniao, conteudo, registro: registroAtual(), extraordinaria: ehExtra(), motivo: ehExtra() ? motivoExtra() : null }).eq("id", ataId);
     if (eAta) throw eAta;
 
     showToast("Alterações da ATA salvas!", "success");
