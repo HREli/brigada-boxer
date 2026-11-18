@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (MODO_REUNIAO) {
     iniciarModoReuniao();
     carregarItensLideres();
+    carregarRetorno();
   } else if (TIPO === "Geral") {
     document.getElementById("btn-inserir-pautas").addEventListener("click", inserirPautasNoConteudo);
     carregarItensLideres();
@@ -186,6 +187,137 @@ async function carregarItensLideres() {
   }
   itensLideresPendentes = data || [];
   renderItensLideres();
+  if (MODO_REUNIAO) renderRetorno();
+}
+
+// ---------------- Retorno do Plano de Ação (Reunião Geral) ----------------
+// Ações ainda abertas com prazo até a data da reunião voltam sozinhas para a pauta.
+let retornoAcoes = [];
+async function carregarRetorno() {
+  if (!CONFIGURADO || TIPO !== "Geral") return;
+  const editId = rascunho && rascunho.editId;
+  let data = [];
+  if (editId) {
+    const ids = Object.keys((rascunho && rascunho.retorno) || {});
+    if (ids.length) {
+      const r = await supabaseClient.from("acoes").select("*").in("id", ids);
+      if (r.error) return console.error(r.error);
+      data = r.data || [];
+    }
+  } else {
+    const r = await supabaseClient.from("acoes").select("*").is("data_conclusao", null).not("prazo", "is", null).order("prazo");
+    if (r.error) return console.error(r.error);
+    data = (r.data || []).filter((a) => a.status !== "Concluída" && a.encaminhamento !== "Pauta Geral");
+  }
+  retornoAcoes = data;
+  renderRetorno();
+}
+
+function dadosRetorno() {
+  const out = {};
+  document.querySelectorAll("#retorno-plano .assunto").forEach((c) => {
+    out[c.dataset.retId] = {
+      disc: c.querySelector(".as-disc").value,
+      dec: c.querySelector(".as-dec").value,
+      ok: c.querySelector(".ret-ok").checked,
+      np: c.querySelector(".ret-prazo").value,
+    };
+  });
+  return out;
+}
+
+function retornoVisiveis() {
+  const dataReuniao = document.getElementById("ata-data").value || hojeISOLocal();
+  const editId = rascunho && rascunho.editId;
+  const daPauta = new Set(itensLideresPendentes.map((i) => i.id));
+  return retornoAcoes
+    .filter((a) => editId || (!daPauta.has(a.id) && a.prazo <= dataReuniao && a.ata_id !== editId))
+    .sort((a, b) => (a.prazo || "").localeCompare(b.prazo || "") || ordemTema(a.tema) - ordemTema(b.tema));
+}
+
+function renderRetorno() {
+  const box = document.getElementById("retorno-box");
+  const cont = document.getElementById("retorno-plano");
+  if (!box || !cont) return;
+  const atuais = cont.children.length ? dadosRetorno() : {};
+  const salvos = (rascunho && rascunho.retorno) || {};
+  const lista = retornoVisiveis();
+  box.style.display = lista.length ? "" : "none";
+  cont.innerHTML = "";
+  const hoje = hojeISOLocal();
+  lista.forEach((a) => {
+    const r = atuais[a.id] || salvos[a.id] || {};
+    const atrasada = a.prazo < hoje;
+    const origem = a.origem === "Manual" ? "cadastro manual" : a.origem;
+    const card = document.createElement("div");
+    card.className = "assunto assunto-retorno";
+    card.dataset.retId = a.id;
+    card.innerHTML = `<div class="assunto-cab">
+        <span class="assunto-num"></span>
+        <div class="assunto-titulo">
+          <span class="badge ${atrasada ? "badge-danger" : "badge-warn"}">${atrasada ? "Atrasada" : "Vence até hoje"}</span>
+          <b>${escHtml(a.descricao)}</b>
+          <div class="small text-muted">${[a.responsavel && "Responsável: " + escHtml(a.responsavel), "prazo " + formatarDataBR(a.prazo), escHtml(origem || "")].filter(Boolean).join(" · ")}</div>
+        </div>
+      </div>
+      <div class="assunto-corpo">
+        <div class="assunto-campos">
+          <div class="field"><label>Situação</label><textarea class="as-disc" placeholder="Como está esta ação?">${escHtml(r.disc || "")}</textarea></div>
+          <div class="field"><label>Decisão</label><textarea class="as-dec" placeholder="O que ficou decidido">${escHtml(r.dec || "")}</textarea></div>
+        </div>
+        <div class="retorno-opcoes">
+          <label class="assunto-chk"><input type="checkbox" class="ret-ok" ${r.ok ? "checked" : ""} /> Concluída</label>
+          <label class="ret-np small">ou novo prazo <input type="date" class="ret-prazo" value="${escHtml(r.np || "")}" ${r.ok ? "disabled" : ""} /></label>
+        </div>
+      </div>`;
+    const ok = card.querySelector(".ret-ok");
+    const np = card.querySelector(".ret-prazo");
+    ok.addEventListener("change", () => {
+      np.disabled = ok.checked;
+      if (ok.checked) np.value = "";
+      card.classList.toggle("ret-concluida", ok.checked);
+    });
+    card.classList.toggle("ret-concluida", !!r.ok);
+    cont.appendChild(card);
+    card.querySelectorAll("textarea").forEach(autoAltura);
+  });
+  renumerar();
+}
+
+function blocoRetornoTexto(n0) {
+  const recuo = (t) => t.trim().split("\n").join("\n      ");
+  const dados = dadosRetorno();
+  let n = n0;
+  const linhas = retornoVisiveis().map((a) => {
+    const d = dados[a.id] || {};
+    let s = `${++n}. ${a.descricao}${a.responsavel ? ` (responsável: ${a.responsavel}, prazo ${formatarDataBR(a.prazo)})` : ""}`;
+    if ((d.disc || "").trim()) s += `\n   Situação: ${recuo(d.disc)}`;
+    if ((d.dec || "").trim()) s += `\n   Decisão: ${recuo(d.dec)}`;
+    if (d.ok) s += `\n   → Concluída`;
+    else if (d.np) s += `\n   → Novo prazo: ${formatarDataBR(d.np)}`;
+    return s;
+  });
+  return { texto: linhas.length ? "RETORNO DO PLANO DE AÇÃO\n\n" + linhas.join("\n\n") : "", n };
+}
+
+// Ao salvar a ATA: concluídas recebem a data da reunião; novos prazos são gravados
+async function aplicarRetorno(dataReuniao) {
+  const dados = dadosRetorno();
+  const antes = (rascunho && rascunho.editId && rascunho.retorno) || {};
+  const hoje = hojeISOLocal();
+  for (const a of retornoVisiveis()) {
+    const d = dados[a.id];
+    if (!d) continue;
+    let campos = null;
+    if (d.ok) campos = { data_conclusao: dataReuniao, status: "Concluída" };
+    else if (antes[a.id] && antes[a.id].ok) {
+      const prazo = d.np || a.prazo;
+      campos = { data_conclusao: null, prazo, status: prazo && prazo < hoje ? "Atrasada" : "Em andamento" };
+    } else if (d.np && d.np !== a.prazo) campos = { prazo: d.np, status: d.np < hoje ? "Atrasada" : "Em andamento" };
+    if (!campos) continue;
+    const { error } = await supabaseClient.from("acoes").update(campos).eq("id", a.id);
+    if (error) throw error;
+  }
 }
 
 function renderItensLideres() {
@@ -287,6 +419,7 @@ async function salvarAta() {
     if (MODO_REUNIAO) {
       const { error } = await supabaseClient.from("atas").update({ registro: registroAtual() }).eq("id", ata.id);
       if (error) console.error(error);
+      await aplicarRetorno(data_reuniao);
     }
 
     if (vinculados.length) {
@@ -310,8 +443,10 @@ async function salvarAta() {
     if (vinculados.length) partes.push(`${vinculados.length} item(ns) dos líderes vinculados`);
     showToast("ATA registrada!" + (partes.length ? " " + partes.join(", ") + "." : ""), "success");
 
-    if (MODO_REUNIAO) limparModoReuniao();
-    else {
+    if (MODO_REUNIAO) {
+      limparModoReuniao();
+      carregarRetorno();
+    } else {
       document.getElementById("ata-conteudo").value = "";
       document.getElementById("acoes-container").innerHTML = "";
     }
@@ -721,12 +856,14 @@ function iniciarModoReuniao() {
   });
   tab.addEventListener("change", salvarRascunhoDepois);
   document.getElementById("previa-ata").addEventListener("toggle", atualizarPrevia);
+  document.getElementById("ata-data").addEventListener("change", renderRetorno);
   document.getElementById("btn-limpar-rascunho").addEventListener("click", (e) => {
     e.preventDefault();
     if (!confirm("Apagar o rascunho e começar o registro do zero?")) return;
     limparModoReuniao();
     carregarBrigadistas();
     carregarItensLideres();
+    carregarRetorno();
   });
   autoAltura(document.getElementById("ata-obs"));
   mostrarAvisoEdicao();
@@ -880,7 +1017,8 @@ function temRegistro() {
     const d = dadosAssunto(c);
     return d.disc.trim() || d.dec.trim() || d.acoes.length;
   });
-  return algum || assuntosNovosPreenchidos().length > 0 || !!document.getElementById("ata-obs").value.trim();
+  const ret = Object.values(dadosRetorno()).some((d) => d.disc.trim() || d.dec.trim() || d.ok || d.np);
+  return algum || ret || assuntosNovosPreenchidos().length > 0 || !!document.getElementById("ata-obs").value.trim();
 }
 
 // Texto da ATA (vai para o histórico e para o PDF)
@@ -898,6 +1036,11 @@ function montarConteudoAta() {
   };
   let n = 0;
   const partes = [];
+  const ret = blocoRetornoTexto(n);
+  if (ret.texto) {
+    partes.push(ret.texto);
+    n = ret.n;
+  }
   const tratados = [...document.querySelectorAll("#ordem-dia .assunto:not(.nao-tratado)")];
   if (tratados.length) {
     const sec = ["ORDEM DO DIA (trazida da Reunião de Líderes)"];
@@ -952,6 +1095,7 @@ function salvarRascunho() {
     presenca: Object.keys(presencaNova).length ? presencaNova : (rascunho && rascunho.presenca) || {},
     cards: { ...((rascunho && rascunho.cards) || {}), ...cards },
     novos,
+    retorno: rascunho && rascunho.editId ? { ...(rascunho.retorno || {}), ...dadosRetorno() } : dadosRetorno(),
   };
   try {
     localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(rascunho));
@@ -969,6 +1113,7 @@ function limparModoReuniao() {
   } catch (e) {}
   rascunho = null;
   document.getElementById("novos-assuntos").innerHTML = "";
+  if (document.getElementById("retorno-plano")) document.getElementById("retorno-plano").innerHTML = "";
   document.getElementById("ata-obs").value = "";
   document.getElementById("ata-data").value = hojeISOLocal();
   document.getElementById("ata-extra").checked = false;
@@ -1001,7 +1146,7 @@ function registroAtual() {
   const cards = {};
   document.querySelectorAll("#ordem-dia .assunto").forEach((c) => (cards[c.dataset.id] = { chk: c.querySelector(".chk-item-lider").checked, ...dadosAssunto(c) }));
   const novos = [...document.querySelectorAll("#novos-assuntos .assunto")].map((c) => ({ titulo: c.querySelector(".as-titulo").value, tema: c.querySelector(".as-tema").value, ...dadosAssunto(c) }));
-  return { cards, novos, obs: document.getElementById("ata-obs").value };
+  return { cards, novos, retorno: dadosRetorno(), obs: document.getElementById("ata-obs").value };
 }
 
 function mostrarAvisoEdicao() {
@@ -1057,6 +1202,7 @@ async function editarAta(ataId) {
       presenca,
       cards: reg.cards || {},
       novos: reg.novos || [],
+      retorno: reg.retorno || {},
     };
     try {
       localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(rascunho));
@@ -1078,11 +1224,12 @@ function registroDeConteudo(ata) {
   let campo = null;
   let secao = "";
   linhas.forEach((l) => {
-    if (/^(ORDEM DO DIA|OUTROS ASSUNTOS|OBSERVAÇÕES GERAIS)/.test(l)) {
-      secao = l.startsWith("OBSERVAÇÕES") ? "obs" : "";
+    if (/^(RETORNO DO PLANO|ORDEM DO DIA|OUTROS ASSUNTOS|OBSERVAÇÕES GERAIS)/.test(l)) {
+      secao = l.startsWith("OBSERVAÇÕES") ? "obs" : l.startsWith("RETORNO") ? "ret" : "";
       atual = null;
       return;
     }
+    if (secao === "ret") return;
     if (secao === "obs") return (reg.obs += (reg.obs ? "\n" : "") + l);
     const m = l.match(/^\d+\. (.*)$/);
     if (m) {
@@ -1172,6 +1319,7 @@ async function salvarEdicaoAta(data_reuniao, conteudo, itens) {
         : await supabaseClient.from("ata_assinaturas").insert({ ata_id: ataId, brigadista_id: b.id, assinado: false, ...valores });
       if (error) throw error;
     }
+    await aplicarRetorno(data_reuniao);
     const { error: eAta } = await supabaseClient.from("atas").update({ data_reuniao, conteudo, registro: registroAtual(), extraordinaria: ehExtra(), motivo: ehExtra() ? motivoExtra() : null }).eq("id", ataId);
     if (eAta) throw eAta;
 
